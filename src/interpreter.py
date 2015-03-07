@@ -26,7 +26,7 @@ grammar = r"""
     function   = conjunction / '(' (assignment / conjunction / adverb) ')'
                / primitive / namedfunc / adverb / bind
                / tacitb / lambda
-    primitive  = r'[\!%=\?+*;|-][.,:]*'
+    primitive  = r'[\!%=\?+*;|-][,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
     adverb     = ('/' / '~') advgroup
@@ -184,12 +184,12 @@ def adjust(l):
 
 # Please remember: x is the right argument and y is the left one.
 
-primitives = {'+': lambda x, y=1: y + x,
+primitives = {'+': lambda x, y=0: y + x,
               '-': lambda x, y=None: x-y if y is not None else -x,
               '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
               '%': lambda x, y=1: y/x,
               ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
-              ';.': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
+              ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
               '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x
               }
 primitives['+'].rank = (0, 0, 0)
@@ -198,8 +198,8 @@ primitives['*'].rank = (0, 0, 0)
 primitives['%'].rank = (0, 0, 0)
 primitives[';'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives[';'].pad = (2, 1, 1)
-primitives[';.'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives[';.'].pad = (1, 0, 0)
+primitives[';,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+primitives[';,'].pad = (1, 0, 0)
 primitives['|'].rank = (0, 0, 0)
 
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
@@ -254,7 +254,7 @@ functions = {'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)
              'B': lambda x, y=None: y if y is not None else x,
              'Ld': rank(lambda x, y=1: x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'Lr': rank(lambda x, y=1: x[:-y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, 0, MAXRANK)),
              'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'E': rank(lambda x, y=None: x[-1] if y is None else x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'N': rank(lambda x, y=None: x[y],
