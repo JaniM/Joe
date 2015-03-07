@@ -1,5 +1,5 @@
 # Joe
-Joe is a concise language derived from J and is designed for code golfing. So, if you're familiar with J, you can easily grasp Joe. Othwerwise, let me run through the most important points:
+Joe is a concise language derived from J and is designed for code golfing. So, if you're familiar with J, you can easily grasp Joe. Otherwise, let me run through the most important points:
 
 * Joe is not a von Neumann -language
 * Functions can usually implicitly handle arbitrarily nested lists (arrays).
