@@ -11,6 +11,7 @@ from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
 
+version = "0.0.0"
 MAXRANK = 100
 
 grammar = r"""
@@ -24,18 +25,19 @@ grammar = r"""
 
     function   = conjunction / '(' (assignment / conjunction / adverb) ')'
                / primitive / namedfunc / adverb / bind
-               / tacit / lambda
+               / tacitb / lambda
     primitive  = r'[\!%=\?+*;|-][.,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
     adverb     = ('/' / '~') advgroup
-    advgroup   = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacit / lambda
+    advgroup   = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
     conjunction= literal '^' function / literal? conjgroup ('@' literal? conjgroup)+
-    conjgroup  = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacit / lambda
-    tacit      = '{' (function / literal)+ '}'
+    conjgroup  = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
+    tacit      = (function / literal)+
+    tacitb     = '{' tacit '}'
     lambda     = '[' statement ']'
 
-    assignment = r'[A-W][a-z]*' space? ':' space? function
+    assignment = r'[A-W][a-z]*' space? ':' space? tacit
                / r'[X-Z][a-z]*' space? ':' space? call
 
     item       = braces / number / string / variable
@@ -250,8 +252,15 @@ functions = {'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)
              'S': rank(lambda x, y=' ': x.split(y), (1, 1, 1)),
              'A': lambda x, y=None: x,
              'B': lambda x, y=None: y if y is not None else x,
-             'Ld': lambda x, y=1: x[y:],
-             'Lr': lambda x, y=1: x[:-y]
+             'Ld': rank(lambda x, y=1: x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'Lr': rank(lambda x, y=1: x[:-y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'E': rank(lambda x, y=None: x[-1] if y is None else x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'N': rank(lambda x, y=None: x[y],
+                       (1, 0, MAXRANK), (1, 0, 1)),
+             'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
+                       (MAXRANK, 1, MAXRANK), (0, 0, 1))
              }
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
@@ -319,7 +328,6 @@ class InterpreterVisitor(PTNodeVisitor):
     def visit_conjunction(self, node, children):
         if sum(1 for c in children if isinstance(c, tuple) or hasattr(c, '__call__'))>1:
             conjs = [x.value for x in node if x.value in conjunctions]
-            print(conjs, children)
             g = children[0]
             if not hasattr(resolve(g), '__call__'):
                 g = bind(children[1], g)
@@ -431,6 +439,8 @@ if __name__ == '__main__':
     parser = ParserPEG(grammar, "program", skipws=False)
     tablemode = '-t' in sys.argv
     if '-repl' in sys.argv:
+        print("Joe REPL - Version " + version)
+        print("Run Help for help.")
         while True:
             code = input('   ')
             if code == 'exit':
@@ -439,7 +449,7 @@ if __name__ == '__main__':
                 try:
                     tree = parser.parse(code)
                     v = visit_parse_tree(tree, InterpreterVisitor())[0]
-                    if not hasattr(v, '__call__'):
+                    if v is not None and not hasattr(v, '__call__'):
                         if tablemode:
                             printtable(v)
                         else:
@@ -455,8 +465,8 @@ if __name__ == '__main__':
         else:
             v = visit_parse_tree(tree, InterpreterVisitor())
             if tablemode:
-                printtable(v)
+                printtable(v[-1])
             else:
-                print(v)
+                print(v[-1])
 
 
