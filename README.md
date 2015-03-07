@@ -7,6 +7,8 @@ Joe is a concise language derived from J and is designed for code golfing. So, i
   * `1 2 3+1 2 3` is `2 4 6`
 * Functions are usually defined in tacit-style, which is closely related to pointless style.
 
+Note: The interpreter used the [Arpeggio module](https://github.com/igordejanovic/Arpeggio) to parse code. You can install it by executing `pip install arpeggio`.
+
 #### Links
 * [Quick tutorial](doc/quick.md)
 
