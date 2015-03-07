@@ -22,6 +22,7 @@
     * Example: `{ABCDE}` -> `{AB{CDE}}`
   * If a literal immediately precedes a function, it is bound as the left argument of the function.
     * Example:
+
        F:1+
        F3
     4
