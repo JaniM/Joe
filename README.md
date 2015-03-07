@@ -4,7 +4,9 @@ Joe is a concise language derived from J and is designed for code golfing. So, i
 * Joe is not a von Neumann -language
 * Functions can usually implicitly handle arbitrarily nested lists (arrays).
   * `1+1 2 3` is `2 3 4`
-* ...
+  * `1 2 3+1 2 3` is `2 4 6`
+* Functions are usually defined in tacit-style, which is closely related to pointless style.
 
+## Links
 * [Quick tutorial](doc/quick.md)
 
