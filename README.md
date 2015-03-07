@@ -7,6 +7,6 @@ Joe is a concise language derived from J and is designed for code golfing. So, i
   * `1 2 3+1 2 3` is `2 4 6`
 * Functions are usually defined in tacit-style, which is closely related to pointless style.
 
-## Links
+### Links
 * [Quick tutorial](doc/quick.md)
 
