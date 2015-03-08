@@ -7,7 +7,7 @@
   * [Rank](#rank)
   * [Padding](#padding)
 
-You should also look at [Function reference](reference.md) and [examples](../examples.md)
+You should also look at [Function reference](reference.txt) and [examples](../examples.md)
 
 ## Syntax reference
 * Literals

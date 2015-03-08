@@ -11,6 +11,6 @@ Note: The interpreter uses the [Arpeggio module](https://github.com/igordejanovi
 
 #### Links
 * [Quick tutorial](doc/quick.md)
-* [Function reference](doc/reference.md)
+* [Function reference](doc/reference.txt)
 * [Examples](examples.md)
 
