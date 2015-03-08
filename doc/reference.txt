@@ -1,0 +1,52 @@
+# Function reference
+### Adverbs
+Adverbs take only one argument, which is an immediately following function, and return a new function.
+
+* `~F` flips the arguments of the function. Informally: `x ~F y` is `y F x`
+* `/F` has two meanings, depending if it's called monadically or dyadically.
+  * `/F y` applies F between all items of y. For example: `/+1 2 3` is `1+2+3`
+  * `x /F y` maps `x /F` to all items of y. For example: `1 2/+1 2 3` is `(1 2+1) (1 2+2) (1 2+3)`
+
+### Conjunctions
+Conjunctions always take two arguments, where left argument either a literal or a function, and right argument is a function. They can return anything.
+
+* `r^F` gives a function, which calls F with rank r.
+* `F@G` gives a function, which passes the result of G to F. Informally: `x F@G y` is `F x G y`
+* `F\`G` gives a list with F and G. If F is a list, G is appended to it.
+* `v@,F` gives a function which uses F to select a function from v. Has rank of F.
+
+### Functions
+x is always the left argument
+y is always the right argument
+
+name | rank  | definitions
++    | 0 0 0 | gives the sum of x and y - x defaults to 0
+-    | 0 0 0 | gives the difference of y from x - `2-5` is 3 - x defaults to 0
+*    | 0 0 0 | dyad:  gives the product of x and y
+               monad: gives the sign of y, which is -1, 0 or 1
+%    | 0 0 0 | gives the dividend of x and y - x defaults to 0
+|    | 0 0 0 | dyad:  gives the modulo of x and y
+               monad: gives the absolute value of y
+;    | M M M | dyad:  concatenates x and y
+               monad: flattens y by one level
+;,   | M M M | dyad:  gives [x, y]
+               monad: flattens y completely
+A    | M M M | returns x
+B    | M M M | returns y
+R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
+               monad: gives numbers from 0 to y, exclusive
+T    | 1 1 1 | dyad:  gives a table of shape x, using items of y cyclically
+               monad: same, but uses range from 0 to infinity
+D    | M M M | gives the depth of y
+L    | M M M | gives the length of y
+S    | 1 1 1 | splits y by x - x defaults to " "
+Ld   | M 0 M | drops the first x items of y - x defaults to 1
+Lr   | M 0 M | drops the last x items of y - x defaults to 1
+Lt   | M M M | nests y by two levels (returns [[y]])
+H    | M 0 M | dyad:  returns the first x items of y
+               monad: returns the first item of y
+E    | M 0 M | dyad:  returns the last x items of y
+               m0nad: returns the last item of y
+N    | 1 0 M | returns the xth item of y - x defaults to 0
+P    | M 1 M | prints y formatted with x (using Python's format) - returns 0
+
