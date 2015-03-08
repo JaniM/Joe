@@ -1,9 +1,11 @@
 # Quick tutorial
-### Absolutely not finished yet.
-Read the syntax reference and jump to [function reference](reference.md) or [examples](../examples.md)
 ## Index
 * [Syntax reference](#syntax-reference)
 * [More about functions](#more-about-functions)
+  * [Monadic or dyadic?](#monadic-or-dyadic)
+  * [Modifiers](#modifiers)
+  * [Rank](#rank)
+  * [Padding](#padding)
 
 ## Syntax reference
 * Literals
