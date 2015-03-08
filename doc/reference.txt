@@ -31,8 +31,16 @@ name | rank  | definitions
                monad: flattens y by one level
 ;,   | M M M | dyad:  gives [x, y]
                monad: flattens y completely
-A    | M M M | returns x
-B    | M M M | returns y
+<    | 0 0 0 | returns x<y
+>    | 0 0 0 | returns x>y
+<:   | 0 0 0 | dyad:  returns x<=y
+               monad: returns x+1
+>:   | 0 0 0 | dyad:  returns x>=y
+               monad: returns x-1
+<,   | 0 0 0 | returns smaller of x and y
+>,   | 0 0 0 | returns greater of x and y
+A    | M M M | returns y
+B    | M M M | returns x
 R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
                monad: gives numbers from 0 to y, exclusive
 T    | 1 1 1 | dyad:  gives a table of shape x, using items of y cyclically

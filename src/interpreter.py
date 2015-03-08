@@ -26,7 +26,7 @@ grammar = r"""
     function   = conjunction / '(' (assignment / conjunction / adverb) ')'
                / primitive / namedfunc / adverb / bind
                / tacitb / lambda
-    primitive  = r'[\!%=\?+*;|-][,:]*'
+    primitive  = r'[\!%=\?+*<>;|-][,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
     adverb     = ('/' / '~') advgroup
@@ -136,7 +136,7 @@ depth = lambda x: isinstance(x, str) \
                   or isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
 foldr = lambda f, xs: functools.reduce(f, reversed(xs))
 flip  = lambda f: rank(lambda x, y=None: f(y, x), (f.rank[0], f.rank[2], f.rank[1]))
-bind  = lambda f, x: lambda y, _=0: call(f, x, y)
+bind  = lambda f, x: rank(lambda y, _=0: call(f, x, y), rankof(f))
 def rank(f, r, p=(0, 0, 0)):
     if not isinstance(r, (tuple, list)):
         r = (r, r, r)
@@ -190,7 +190,14 @@ primitives = {'+': lambda x, y=0: y + x,
               '%': lambda x, y=1: y/x,
               ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
               ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
-              '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x
+              '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x,
+              '<': lambda x, y=0: x<y,
+              '>': lambda x, y=0: x>y,
+              '<:': lambda x, y=None: x<=y if y is not None else x-1,
+              '>:': lambda x, y=None: x>=y if y is not None else x+1,
+              '<,': lambda x, y=None: x if y is None else x if x<y else y,
+              '>,': lambda x, y=None: x if y is None else x if x>y else y,
+              '=': lambda x, y=0: x==y,
               }
 primitives['+'].rank = (0, 0, 0)
 primitives['-'].rank = (0, 0, 0)
@@ -201,6 +208,13 @@ primitives[';'].pad = (2, 1, 1)
 primitives[';,'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives[';,'].pad = (1, 0, 0)
 primitives['|'].rank = (0, 0, 0)
+primitives['<'].rank = (0, 0, 0)
+primitives['>'].rank = (0, 0, 0)
+primitives['<:'].rank = (0, 0, 0)
+primitives['>:'].rank = (0, 0, 0)
+primitives['<,'].rank = (0, 0, 0)
+primitives['>,'].rank = (0, 0, 0)
+primitives['='].rank = (0, 0, 0)
 
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
@@ -337,7 +351,6 @@ class InterpreterVisitor(PTNodeVisitor):
         if sum(1 for c in children if isinstance(c, tuple) or hasattr(c, '__call__'))>1:
             conjs = [x.value for x in node if x.value in conjunctions]
             children = [c for c in children if c not in conjunctions]
-            print(conjs, children)
             g = children[0]
             if not hasattr(resolve(g), '__call__'):
                 g = bind(children[1], g)
