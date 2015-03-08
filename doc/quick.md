@@ -7,7 +7,7 @@ Read the syntax reference and jump to [function reference](reference.md) or [exa
 
 ## Syntax reference
 * Literals
-  * Number: `10` or `5.3` or `.7`
+  * Number: `10` or `_7` or `5.3` or `.7` (use _ instead of -, because - is a function)
   * Character: `'a`
   * String: `"a \"feather\""`
   * Lists: `1 2 3` - can contain any of the preceding literals and any expressions surrounded by braces.
@@ -107,4 +107,31 @@ Functions would be pretty boring by themselves. That's why we have modifiers. Th
     ```
 
 #### Rank
-Functions behave a bit differently than usually. They operate on a specific rank. Rank of a list is it's depth. For example, `[[1, 2], [3, 4]]` has rank of 2. Rank of a function consists of three numbers though. 
+Functions behave a bit different than usually. They operate on a specific rank. Rank of a list is it's depth. For example, `[[1, 2], [3, 4]]` has rank of 2. Rank of a function consists of three numbers though. Let's look at what each one of them means and what the rank of a function actually does.
+
+I'll take the function Ld ("list drop") as an example. It has rank of `M 0 M` (not intended). The first value, which in this case is "maximum", means that if the function is used monadically, it applies to the whole argument, dropping the first item. The more interesting case is when it's used monadically.
+
+The second and third values mean the rank of left and right argument, respectively. In the case of `M 0 M`, it applies each individual cell (rank 0 item, or atom) of the left argument to the whole right argument. It's hard to explain, but you can think of it as implicit mapping. I'll demonstrate with an example:
+
+```
+
+   2Ld0 1 2 3 4 5
+2 3 4 5 
+   2 1 3Ld0 1 2 3 4 5
+2 3 4 5 
+1 2 3 4 5 
+3 4 5 
+```
+
+You can always create a function with different rank by using the `^` conjunction. It has three possible forms:
+
+* `M L R^F`, which gives the rank `M L R` to F. For example: `1 0 1^+`
+* `L R^F`, which gives the rank `R L R` to F. For example: `0 1^+` is `1 0 1^+`
+* `N^F`, which gives the rank `N N N` to F. For example: `1^+` is `1 1 1^+^
+
+Note: Rank can be negative, in which case ... hard to explain, have an example. If the function's rank is `_1`, and the argument's rank is 3, it maps to the rank 2 items of the argument.
+
+#### Padding
+Padding is a more subtle technique, It ensures that the function's arguments have at least the required rank to operate correctly. For example, monadic `;` flattens a list by one level. For this to work, the argument must have at least a rank of 2. Padding ensures that it is. In effect, `;10` gives `[10]`. Padding can't be affected by code.
+
+
