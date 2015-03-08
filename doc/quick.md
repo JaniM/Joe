@@ -15,7 +15,7 @@
   * Lists: `1 2 3` - can contain any of the preceding literals and any expressions surrounded by braces.
 * Function calls
   * Functions are referenced by `[A-W][a-z]*`
-  * Functions always take two parameters, in the syntax `xFy`, where x is a literal immediately preceding the function and y is everything following it. The left and right argument are always referenced as X and Y, respectively.
+  * Functions always take one or two parameters, in the syntax `Fy` or `xFy`, where x is a literal immediately preceding the function and y is everything following it. The left and right argument are always referenced as X and Y, respectively.
   * Modifiers take functions as their arguments and return new functions. They're referenced as A for adverb and C for conjunction.
     * `AF`
     * `vCF`, `FCF` (v is a literal argument to the conjunction)
@@ -39,7 +39,7 @@
 
 ## More about functions
 #### Monadic or dyadic?
-Most functions can be called with one or two arguments. Never zero and never more than two. And no, it really isn't restricting. Function used with one argument is called the monadic form of the function and, like you could guess, function used with two arguments is called the dyadic form of the function. The difference between the two is usually quite obvious and often can be used interchangeably, resulting in more flexible derived functions. Here's a couple of examples:
+Most functions can be called with one or two arguments. Never zero and never more than two. And no, it really isn't restricting. Function used with one argument is called the monadic form of the function and, like you could guess, function used with two arguments is called the dyadic form of the function. The difference between the two is usually quite obvious and often can be used interchangeably, resulting in more flexible derived functions. As a rule of thumb, you often can think of the left argument as control data. Here's a couple of examples:
 
 * Table-function
 
@@ -125,7 +125,7 @@ The second and third values mean the rank of left and right argument, respective
 3 4 5 
 ```
 
-You can always create a function with different rank by using the `^` conjunction. It has three possible forms:
+You can always create a function with different rank by using the `^` conjunction. Note that you can use comma to separate the rank from a preceding argument if necessary. It has three possible forms:
 
 * `M L R^F`, which gives the rank `M L R` to F. For example: `1 0 1^+`
 * `L R^F`, which gives the rank `R L R` to F. For example: `0 1^+` is `1 0 1^+`
@@ -135,5 +135,4 @@ Note: Rank can be negative, in which case ... hard to explain, have an example. 
 
 #### Padding
 Padding is a more subtle technique, It ensures that the function's arguments have at least the required rank to operate correctly. For example, monadic `;` flattens a list by one level. For this to work, the argument must have at least a rank of 2. Padding ensures that it is. In effect, `;10` gives `[10]`. Padding can't be affected by code.
-
 
