@@ -12,8 +12,8 @@ Conjunctions always take two arguments, where left argument either a literal or 
 
 * `r^F` gives a function, which calls F with rank r.
 * `F@G` gives a function, which passes the result of G to F. Informally: `x F@G y` is `F x G y`
+* `v@F` gives a function which uses F to select a function from v if v is a list. Has rank of F.
 * `F\`G` gives a list with F and G. If F is a list, G is appended to it.
-* `v@,F` gives a function which uses F to select a function from v. Has rank of F.
 
 ### Functions
 x is always the left argument
@@ -39,6 +39,7 @@ name | rank  | definitions
                monad: returns x-1
 <,   | 0 0 0 | returns smaller of x and y
 >,   | 0 0 0 | returns greater of x and y
+=    | 0 0 0 | returns x==y - x defaults to 0
 A    | M M M | returns y
 B    | M M M | returns x
 R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
@@ -48,6 +49,8 @@ T    | 1 1 1 | dyad:  gives a table of shape x, using items of y cyclically
 D    | M M M | gives the depth of y
 L    | M M M | gives the length of y
 S    | 1 1 1 | splits y by x - x defaults to " "
+I    | 1 0 1 | converts string y to integer with base x - x defaults to 10
+F    | 1 0 1 | converts string y to float
 Ld   | M 0 M | drops the first x items of y - x defaults to 1
 Lr   | M 0 M | drops the last x items of y - x defaults to 1
 Lt   | M M M | nests y by two levels (returns [[y]])

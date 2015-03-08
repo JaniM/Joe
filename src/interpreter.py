@@ -11,7 +11,7 @@ from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
 
-version = "0.0.0"
+version = "0.0.1"
 MAXRANK = 100
 
 grammar = r"""
@@ -220,7 +220,7 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
                                    if y is None \
                                    else call(f, y, x),
-                               (MAXRANK, MAXRANK, -1)),
+                               (MAXRANK, MAXRANK, -1), (1, 0, 1)),
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            }
 
@@ -236,9 +236,10 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            else call(f, y, x),
                                        n),
                 '@': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
-                                       (MAXRANK, MAXRANK, MAXRANK)),
+                                       (MAXRANK, MAXRANK, MAXRANK))
+                                  if not isinstance(g, list)
+                                  else rank(lambda x, y=None: agenda(f, g, x, y), rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
-                '@,': lambda f, a: rank(lambda x, y=None: agenda(f, a, x, y), rankof(f))
                 }
 
 def partition(l, n):
@@ -261,24 +262,28 @@ def flatten(l):
         else:
             yield el
 
-functions = {'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
+functions = {'A': lambda x, y=None: x,
+             'B': lambda x, y=None: y if y is not None else x,
+             'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
+
                                          if y is not None \
-                                         else list(range(x)),
+                                         else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
-             'T': rank(lambda x, y=None: table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
+             'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
+                                         if x != [0] else [])
                                          if y is None
                                          else table(x, y),
                        (1, 1, 1), (1, 1, 1)),
              'D': lambda x, y=None: +depth(x),
              'L': lambda x, y=None: len(x),
              'S': rank(lambda x, y=' ': x.split(y), (1, 1, 1)),
-             'A': lambda x, y=None: x,
-             'B': lambda x, y=None: y if y is not None else x,
-             'Ld': rank(lambda x, y=1: x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'Lr': rank(lambda x, y=1: x[:-y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'I': rank(lambda x, y=10: float(int(x, y)), (1, 0, 1)),
+             'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
+             'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'Lr': rank(lambda x, y=1: x[:-y] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, MAXRANK, MAXRANK)),
              'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'E': rank(lambda x, y=None: x[-1] if y is None else x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'E': rank(lambda x, y=None: (x[-1] if y is None else x[-y:]) if x else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'N': rank(lambda x, y=0: x[y],
                        (1, 0, MAXRANK), (1, 0, 1)),
              'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
@@ -302,9 +307,9 @@ def call(f, x, y=None, xdepth=0, ydepth=0):
     dx, dy = depth(x), depth(y)
     xr = 0 > lrank < xdepth or dx > lrank >= 0
     yr = 0 > rrank < ydepth or dy > rrank >= 0
-    if xr and yr:
-        return [call(f, a, b, xdepth-1, ydepth-1) for a, b in zip(x, y)]
-    elif xr:
+#    if xr and yr:
+#        return [call(f, a, b, xdepth-1, ydepth-1) for a, b in zip(x, y)]
+    if xr:
         return [call(f, z, y, xdepth-1, ydepth) for z in x]
     elif yr:
         return [call(f, x, z, xdepth, ydepth-1) for z in y]
@@ -463,7 +468,7 @@ if __name__ == '__main__':
     tablemode = '-t' in sys.argv
     if '-repl' in sys.argv:
         print("Joe REPL - Version " + version)
-        print("Run Help for help.")
+        print("Type exit to exit.")
         while True:
             code = input('   ')
             if code == 'exit':
