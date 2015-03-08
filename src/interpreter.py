@@ -31,7 +31,7 @@ grammar = r"""
     bind       = literal function
     adverb     = ('/' / '~') advgroup
     advgroup   = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
-    conjunction= literal '^' function / literal? conjgroup ('@' literal? conjgroup)+
+    conjunction= literal '^' function / literal? conjgroup (r'[@`][,:]*' literal? conjgroup)+
     conjgroup  = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
     tacit      = (function / literal)+
     tacitb     = '{' tacit '}'
@@ -210,13 +210,21 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            }
 
+def agenda(f, a, x, y):
+    v = a[call(f, x) if y is None else call(f, y, x)]
+    if y is None:
+        return call(v, x)
+    return call(v, y, x)
+
 conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            call(f, x) \
                                            if y is None \
                                            else call(f, y, x),
                                        n),
                 '@': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
-                                       (MAXRANK, MAXRANK, MAXRANK))
+                                       (MAXRANK, MAXRANK, MAXRANK)),
+                '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
+                '@,': lambda f, a: rank(lambda x, y=None: agenda(f, a, x, y), rankof(f))
                 }
 
 def partition(l, n):
@@ -254,10 +262,10 @@ functions = {'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)
              'B': lambda x, y=None: y if y is not None else x,
              'Ld': rank(lambda x, y=1: x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'Lr': rank(lambda x, y=1: x[:-y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, 0, MAXRANK)),
+             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, MAXRANK, MAXRANK)),
              'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'E': rank(lambda x, y=None: x[-1] if y is None else x[y:], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'N': rank(lambda x, y=None: x[y],
+             'N': rank(lambda x, y=0: x[y],
                        (1, 0, MAXRANK), (1, 0, 1)),
              'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
                        (MAXRANK, 1, MAXRANK), (0, 0, 1))
@@ -328,6 +336,8 @@ class InterpreterVisitor(PTNodeVisitor):
     def visit_conjunction(self, node, children):
         if sum(1 for c in children if isinstance(c, tuple) or hasattr(c, '__call__'))>1:
             conjs = [x.value for x in node if x.value in conjunctions]
+            children = [c for c in children if c not in conjunctions]
+            print(conjs, children)
             g = children[0]
             if not hasattr(resolve(g), '__call__'):
                 g = bind(children[1], g)
