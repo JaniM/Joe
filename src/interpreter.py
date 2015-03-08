@@ -207,7 +207,7 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    if y is None \
                                    else call(f, y, x),
                                (MAXRANK, MAXRANK, -1)),
-           '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, y, x),
+           '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            }
 
 conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
