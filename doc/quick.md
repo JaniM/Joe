@@ -7,6 +7,8 @@
   * [Rank](#rank)
   * [Padding](#padding)
 
+You should also look at [Function reference](reference.md) and [examples](../examples.md)
+
 ## Syntax reference
 * Literals
   * Number: `10` or `_7` or `5.3` or `.7` (use _ instead of -, because - is a function)
