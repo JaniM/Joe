@@ -24,21 +24,22 @@ grammar = r"""
                / literal
 
     function   = conjunction / '(' (assignment / conjunction / adverb) ')'
-               / primitive / namedfunc / adverb / bind
+               / adverb / bind / primitive / namedfunc
                / tacitb / lambda
-    primitive  = r'[\!%=\?+*<>;|-][,:]*'
+    primitive  = r'[\!%=\?+*<>;|\]-][,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
-    adverb     = ('/' / '~') advgroup
+    adverb     = ('/' / '~' / 'M') advgroup
     advgroup   = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
-    conjunction= literal '^' function / literal? conjgroup (r'[@`][,:]*' literal? conjgroup)+
+    conjunction= literal ('^' / '/,') function / literal? conjgroup (r'[@`][,:]*' literal? conjgroup)+
     conjgroup  = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
     tacit      = (function / literal)+
-    tacitb     = '{' tacit '}'
-    lambda     = '[' statement ']'
+    tacitb     = '{' tacit ')'?
+    lambda     = '[' statement ')'?
 
-    assignment = r'[A-W][a-z]*' space? ':' space? tacit
+    assignment = r'[A-W][a-z]*' space? ':' space? combination
                / r'[X-Z][a-z]*' space? ':' space? call
+    combination= function+
 
     item       = braces / number / string / variable
     braces     = '(' &call expression ')'
@@ -134,7 +135,7 @@ class SyntaxVisitor(PTNodeVisitor):
 
 depth = lambda x: isinstance(x, str) \
                   or isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
-foldr = lambda f, xs: functools.reduce(f, reversed(xs))
+foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs), s) if len(xs) else [])
 flip  = lambda f: rank(lambda x, y=None: f(y, x), (f.rank[0], f.rank[2], f.rank[1]))
 bind  = lambda f, x: rank(lambda y, _=0: call(f, x, y), rankof(f))
 def rank(f, r, p=(0, 0, 0)):
@@ -182,9 +183,15 @@ def adjust(l):
         r += [x]
     return r
 
+def nest(x, n):
+    for _ in range(n):
+        x = [x]
+    return x
+
 # Please remember: x is the right argument and y is the left one.
 
 primitives = {'+': lambda x, y=0: y + x,
+              '+,': lambda x, y=[]: y + [x], # NOT DOCUMENTED
               '-': lambda x, y=None: x-y if y is not None else -x,
               '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
               '%': lambda x, y=1: y/x,
@@ -198,8 +205,11 @@ primitives = {'+': lambda x, y=0: y + x,
               '<,': lambda x, y=None: x if y is None else x if x<y else y,
               '>,': lambda x, y=None: x if y is None else x if x>y else y,
               '=': lambda x, y=0: x==y,
+              ']': lambda x, y=1: nest(x, y), # NOT DOCUMENTED
               }
 primitives['+'].rank = (0, 0, 0)
+primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+primitives['+,'].pad = (0, 1, 0)
 primitives['-'].rank = (0, 0, 0)
 primitives['*'].rank = (0, 0, 0)
 primitives['%'].rank = (0, 0, 0)
@@ -215,13 +225,16 @@ primitives['>:'].rank = (0, 0, 0)
 primitives['<,'].rank = (0, 0, 0)
 primitives['>,'].rank = (0, 0, 0)
 primitives['='].rank = (0, 0, 0)
+primitives[']'].rank = (MAXRANK, 0, MAXRANK)
 
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
                                    if y is None \
-                                   else call(f, y, x),
+                                   else call(f, x),
                                (MAXRANK, MAXRANK, -1), (1, 0, 1)),
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
+           'M': lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
+                               (0, MAXRANK, 0)), # NOT DOCUMENTED
            }
 
 def agenda(f, a, x, y):
@@ -235,6 +248,11 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            if y is None \
                                            else call(f, y, x),
                                        n),
+                '/,': lambda f, s: rank(lambda x, y=None:
+                                            foldr(lambda x, y: call(f, x, y), x, s)
+                                            if y is None
+                                            else call(f, x),
+                                        (MAXRANK, MAXRANK, -1), (1, 0, 1)),
                 '@': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
                                        (MAXRANK, MAXRANK, MAXRANK))
                                   if not isinstance(g, list)
@@ -287,7 +305,8 @@ functions = {'A': lambda x, y=None: x,
              'N': rank(lambda x, y=0: x[y],
                        (1, 0, MAXRANK), (1, 0, 1)),
              'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
-                       (MAXRANK, 1, MAXRANK), (0, 0, 1))
+                       (MAXRANK, 1, MAXRANK), (0, 0, 1)),
+             'Z': []
              }
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
@@ -417,6 +436,13 @@ class InterpreterVisitor(PTNodeVisitor):
         functions[node[0].value] = resolve(children[-1])
         return children[-1]
 
+    def visit_combination(self, node, children):
+        def f(x, y=None):
+            for f in reversed(children):
+                x = call(f, x) if y is None else call(f, y, x)
+            return x
+        return f
+
     def visit_tacit(self, node, children):
         def f(x, y=None):
             fs = children[::-1]
@@ -475,7 +501,7 @@ if __name__ == '__main__':
                 break
             if code.strip() != '':
                 try:
-                    tree = parser.parse(code)
+                    tree = parser.parse(code+'\n')
                     v = visit_parse_tree(tree, InterpreterVisitor())[0]
                     if v is not None and not hasattr(v, '__call__'):
                         if tablemode:
