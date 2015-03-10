@@ -17,6 +17,32 @@
     * `%` divides the left argument by the right argument
     * `L` gives the length of a list
 
+* Factorial
+
+    ```
+       Fac:/*-,1R
+       MFacR10
+    [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880]
+    ```
+
+  Explanation: Fac is a chain. When you call `FacY`, it gets evaluated as `/*-,1RY`.
+    * `/*` gives the product of the given list
+    * `-,` removes the items of the left argument from the right argument. Because no left argument was given, it removes zeroes.
+    * `1R` gives a list from 1 to the argument, inclusive
+
+    * `R10` gives a list from 0 to 9
+    * `MFac` maps Fac to them
+
+* Fibonacci sequence
+
+    ```
+       F:0 1/,{A;/+@2E)R
+       F10
+    [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+    ```
+
+    Explanation coming
+
 ## Code golf examples
 
 * [Home on the Range of Lists](http://codegolf.stackexchange.com/q/47351/20356)

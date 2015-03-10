@@ -23,16 +23,16 @@ grammar = r"""
                / function call
                / literal
 
-    function   = conjunction / '(' (assignment / conjunction / adverb) ')'
+    function   = conjunction / '(' (assignment / conjunction / adverb) ')'?
                / adverb / bind / primitive / namedfunc
                / tacitb / lambda
     primitive  = r'[\!%=\?+*<>;|\]-][,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
     adverb     = ('/' / '~' / 'M') advgroup
-    advgroup   = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
-    conjunction= literal ('^' / '/,') function / literal? conjgroup (r'[@`][,:]*' literal? conjgroup)+
-    conjgroup  = '(' (conjunction / adverb) ')' / adverb / bind / primitive / namedfunc / tacitb / lambda
+    advgroup   = '(' (assignment / conjunction / adverb) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
+    conjunction= literal ('^' / '/,') function / literal? conjgroup (r'[@`][,:]*' (literal? conjgroup / literal conjunction))+
+    conjgroup  = '(' (assignment / conjunction / adverb) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
     tacit      = (function / literal)+
     tacitb     = '{' tacit ')'?
     lambda     = '[' statement ')'?
@@ -133,9 +133,8 @@ class SyntaxVisitor(PTNodeVisitor):
     def visit_lambda(self, node, children):
         return ('lambda', children[0])
 
-depth = lambda x: isinstance(x, str) \
-                  or isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
-foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs), s) if len(xs) else [])
+depth = lambda x: isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
+foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs[s is None:]), xs[0] if s is None else s) if len(xs) else [])
 flip  = lambda f: rank(lambda x, y=None: f(y, x), (f.rank[0], f.rank[2], f.rank[1]))
 bind  = lambda f, x: rank(lambda y, _=0: call(f, x, y), rankof(f))
 def rank(f, r, p=(0, 0, 0)):
@@ -188,6 +187,29 @@ def nest(x, n):
         x = [x]
     return x
 
+def split(l, splitter):
+    sl = len(splitter)
+    ll = len(l)
+    r = []
+    curr = []
+    i = 0
+    while i < ll - sl:
+        if l[i:i+sl] == splitter:
+            r += [curr]
+            curr = []
+            i += sl
+        else:
+            curr += l[i]
+            i += 1
+    return r
+
+def join(l, j):
+    r = []
+    for x in l:
+        r += x
+        r += j
+    return r[:-len(j)]
+
 # Please remember: x is the right argument and y is the left one.
 
 primitives = {'+': lambda x, y=0: y + x,
@@ -206,6 +228,8 @@ primitives = {'+': lambda x, y=0: y + x,
               '>,': lambda x, y=None: x if y is None else x if x>y else y,
               '=': lambda x, y=0: x==y,
               ']': lambda x, y=1: nest(x, y), # NOT DOCUMENTED
+              '-,': lambda x, y=[0]: [z for z in x if z not in y], # NOT DOCUMENTED
+              '-:': lambda x, y=[1]: [z for z in x if z in y], # NOT DOCUMENTED
               }
 primitives['+'].rank = (0, 0, 0)
 primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
@@ -226,15 +250,19 @@ primitives['<,'].rank = (0, 0, 0)
 primitives['>,'].rank = (0, 0, 0)
 primitives['='].rank = (0, 0, 0)
 primitives[']'].rank = (MAXRANK, 0, MAXRANK)
+primitives['-,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+primitives['-,'].pad = (1, 1, 1)
+primitives['-:'].rank = (MAXRANK, MAXRANK, MAXRANK)
+primitives['-:'].pad = (1, 1, 1)
 
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
                                    if y is None \
-                                   else call(f, x),
+                                   else call(f, y, x),
                                (MAXRANK, MAXRANK, -1), (1, 0, 1)),
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            'M': lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
-                               (0, MAXRANK, 0)), # NOT DOCUMENTED
+                               (-1, MAXRANK, -1)), # NOT DOCUMENTED
            }
 
 def agenda(f, a, x, y):
@@ -249,9 +277,9 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            else call(f, y, x),
                                        n),
                 '/,': lambda f, s: rank(lambda x, y=None:
-                                            foldr(lambda x, y: call(f, x, y), x, s)
+                                            foldr(lambda x, y: call(f, y, x), x, s)
                                             if y is None
-                                            else call(f, x),
+                                            else call(f, y, x),
                                         (MAXRANK, MAXRANK, -1), (1, 0, 1)),
                 '@': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
                                        (MAXRANK, MAXRANK, MAXRANK))
@@ -283,7 +311,6 @@ def flatten(l):
 functions = {'A': lambda x, y=None: x,
              'B': lambda x, y=None: y if y is not None else x,
              'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
-
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
@@ -294,7 +321,8 @@ functions = {'A': lambda x, y=None: x,
                        (1, 1, 1), (1, 1, 1)),
              'D': lambda x, y=None: +depth(x),
              'L': lambda x, y=None: len(x),
-             'S': rank(lambda x, y=' ': x.split(y), (1, 1, 1)),
+             'S': rank(lambda x, y=[' ']: split(x, y), (1, 1, 1), (1, 1, 1)), # KIND OF DOCUMENTED
+             'J': rank(lambda x, y=['']: join(x, y), (MAXRANK, 1, MAXRANK), (2, 1, 2)), # NOT DOCUMENTED
              'I': rank(lambda x, y=10: float(int(x, y)), (1, 0, 1)),
              'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
              'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
@@ -306,11 +334,12 @@ functions = {'A': lambda x, y=None: x,
                        (1, 0, MAXRANK), (1, 0, 1)),
              'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
                        (MAXRANK, 1, MAXRANK), (0, 0, 1)),
-             'Z': []
+             'Z': [] # NOT DOCUMENTED
              }
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
     x, y, f = resolve(x), resolve(y), resolve(f)
+#    print(f) # In case of "str is not callable"
     rank, lrank, rrank = rankof(f)
     if y is None:
         dx = depth(x)
@@ -388,7 +417,7 @@ class InterpreterVisitor(PTNodeVisitor):
                 children = children[1:]
                 conjs = conjs[1:]
             return g
-        return withConjunction(node[1].value, children[1], children[0])
+        return withConjunction(children[1], children[2], children[0])
 
     def visit_function(self, node, children):
         return children[0]
@@ -421,7 +450,7 @@ class InterpreterVisitor(PTNodeVisitor):
 
     def visit_string(self, node, children):
         v = node.value.encode().decode('unicode_escape')
-        return v[1:-1] if v[0] == '"' else v[1:]
+        return list(v[1:-1]) if v[0] == '"' else v[1:]
 
     def visit_space(self, node, children):
         return None
@@ -448,6 +477,8 @@ class InterpreterVisitor(PTNodeVisitor):
             fs = children[::-1]
             fy = fs[0]
             vy = call(fy, y, x) if y is not None else call(fy, x)
+            if len(fs) == 2:
+                return call(fs[1], x, vy) if y is None else call(fs[1], y, vy)
             while len(fs)>1:
                 fx = fs[2]
                 ff = fs[1]
@@ -457,12 +488,12 @@ class InterpreterVisitor(PTNodeVisitor):
                     vx = fx
                 vy = call(ff, vx, vy)
                 fs = fs[2:]
+            if len(fs) == 1:
+                vy = call(fs[0], y, vy) if y is not None else call(fs[0], x, vy)
             return vy
         f.rank = (MAXRANK, MAXRANK, MAXRANK)
-        if len(children) > 2:
+        if len(children) > 1:
             return f
-        elif len(children) != 1:
-            raise 'Invalid tacit expression'
         return children[0]
 
     def visit_lambda(self, node, children):
@@ -474,11 +505,11 @@ class InterpreterVisitor(PTNodeVisitor):
 # TODO: Each column should have dffferent width
 def printtable(v, w=0):
     dv = depth(v)
-    if dv == 0 or isinstance(v, str):
+    if dv == 0:
         print(v)
     elif dv == 1:
         for x in v:
-            print(('{:'+str(w)+'}').format(x), end=' ')
+            print(('{:'+str(w)+'}').format(x), end=' '*(not isinstance(x, str)))
         print()
     elif dv > 1:
         vl = len(v)
@@ -507,7 +538,10 @@ if __name__ == '__main__':
                         if tablemode:
                             printtable(v)
                         else:
-                            print(v)
+                            try:
+                                print(''.join(v))
+                            except:
+                                print(v)
                 except Exception as e:
                     print("Error\n", e)
     else:
