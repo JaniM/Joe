@@ -11,7 +11,7 @@ from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
 
-version = "0.0.1"
+version = "0.1.0"
 MAXRANK = 100
 
 grammar = r"""
@@ -31,7 +31,10 @@ grammar = r"""
     bind       = literal function
     adverb     = ('/' / '~' / 'M') advgroup
     advgroup   = '(' (assignment / conjunction / adverb) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
-    conjunction= literal ('^' / '/,') function / literal? conjgroup (r'[@`][,:]*' (literal? conjgroup / literal conjunction))+
+    conjunction= conjlvl1 / conjlvl2 / conjlvl3
+    conjlvl1   = literal ('^' / '/,') function
+    conjlvl2   = literal? conjgroup (r'[$][,:]*' literal? (conjlvl1 / conjlvl3 / conjgroup))+
+    conjlvl3   = literal? conjgroup (r'[@`][,:]*' (literal? conjgroup / literal conjunction))+
     conjgroup  = '(' (assignment / conjunction / adverb) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
     tacit      = (function / literal)+
     tacitb     = '{' tacit ')'?
@@ -210,10 +213,22 @@ def join(l, j):
         r += j
     return r[:-len(j)]
 
+def unique(l, idfun=None):
+    if idfun is None:
+        idfun = lambda x: x
+    seen = {}
+    result = []
+    for item in l:
+        marker = idfun(item)
+        if marker in seen: continue
+        seen[marker] = 1
+        result.append(item)
+    return result
+
 # Please remember: x is the right argument and y is the left one.
 
 primitives = {'+': lambda x, y=0: y + x,
-              '+,': lambda x, y=[]: y + [x], # NOT DOCUMENTED
+              '+,': lambda x, y=[]: y + [x], 
               '-': lambda x, y=None: x-y if y is not None else -x,
               '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
               '%': lambda x, y=1: y/x,
@@ -227,9 +242,9 @@ primitives = {'+': lambda x, y=0: y + x,
               '<,': lambda x, y=None: x if y is None else x if x<y else y,
               '>,': lambda x, y=None: x if y is None else x if x>y else y,
               '=': lambda x, y=0: x==y,
-              ']': lambda x, y=1: nest(x, y), # NOT DOCUMENTED
-              '-,': lambda x, y=[0]: [z for z in x if z not in y], # NOT DOCUMENTED
-              '-:': lambda x, y=[1]: [z for z in x if z in y], # NOT DOCUMENTED
+              ']': lambda x, y=1: nest(x, y), 
+              '-,': lambda x, y=[0]: [z for z in x if z not in y], 
+              '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
               }
 primitives['+'].rank = (0, 0, 0)
 primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
@@ -262,7 +277,7 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                (MAXRANK, MAXRANK, -1), (1, 0, 1)),
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            'M': lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
-                               (-1, MAXRANK, -1)), # NOT DOCUMENTED
+                               (-1, -1, -1)), 
            }
 
 def agenda(f, a, x, y):
@@ -286,6 +301,12 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                   if not isinstance(g, list)
                                   else rank(lambda x, y=None: agenda(f, g, x, y), rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
+                '$': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
+                                                    if y is not None
+                                                    else call(g, x, call(f, x)), 
+                '$,': lambda f, g: lambda x, y=None: call(g, call(f, y, x), y)
+                                                     if y is not None
+                                                     else call(g, call(f, x), x), 
                 }
 
 def partition(l, n):
@@ -310,31 +331,39 @@ def flatten(l):
 
 functions = {'A': lambda x, y=None: x,
              'B': lambda x, y=None: y if y is not None else x,
+             'C': rank(lambda x, y=1: sum(1 for z in x if z == y),
+                       (MAXRANK, -1, MAXRANK), (1, 0, 1)), 
+             'D': lambda x, y=None: +depth(x),
+             'E': rank(lambda x, y=None: (x[-1] if y is None else x[-y:]) if x else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
+             'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'I': rank(lambda x, y=10: float(int(x, y)), (1, 0, 1)),
+             'J': rank(lambda x, y=['']: join(x, y), (MAXRANK, 1, MAXRANK), (2, 1, 2)), 
+             'L': lambda x, y=None: len(x),
+             'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'Lr': rank(lambda x, y=1: x[:-y] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
+             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, MAXRANK, MAXRANK)),
+             'N': rank(lambda x, y=0: x[y],
+                       (1, 0, MAXRANK), (1, 0, 1)),
+             'O': rank(lambda x, y=None: [x[i] for i,_ in sorted(enumerate(y), key=lambda x:x[1])]
+                                         if y is not None
+                                         else sorted(x),
+                       (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)), 
+             'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
+                       (MAXRANK, 1, MAXRANK), (0, 0, 1)),
              'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
+             'S': rank(lambda x, y=[' ']: split(x, y), (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)),
              'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
                                          if x != [0] else [])
                                          if y is None
                                          else table(x, y),
                        (1, 1, 1), (1, 1, 1)),
-             'D': lambda x, y=None: +depth(x),
-             'L': lambda x, y=None: len(x),
-             'S': rank(lambda x, y=[' ']: split(x, y), (1, 1, 1), (1, 1, 1)), # KIND OF DOCUMENTED
-             'J': rank(lambda x, y=['']: join(x, y), (MAXRANK, 1, MAXRANK), (2, 1, 2)), # NOT DOCUMENTED
-             'I': rank(lambda x, y=10: float(int(x, y)), (1, 0, 1)),
-             'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
-             'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'Lr': rank(lambda x, y=1: x[:-y] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, MAXRANK, MAXRANK)),
-             'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'E': rank(lambda x, y=None: (x[-1] if y is None else x[-y:]) if x else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'N': rank(lambda x, y=0: x[y],
-                       (1, 0, MAXRANK), (1, 0, 1)),
-             'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
-                       (MAXRANK, 1, MAXRANK), (0, 0, 1)),
-             'Z': [] # NOT DOCUMENTED
+             'V': rank(lambda x, y=None: x[::-1],
+                       (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1)), 
+             'Z': [] 
              }
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
@@ -355,8 +384,8 @@ def call(f, x, y=None, xdepth=0, ydepth=0):
     dx, dy = depth(x), depth(y)
     xr = 0 > lrank < xdepth or dx > lrank >= 0
     yr = 0 > rrank < ydepth or dy > rrank >= 0
-#    if xr and yr:
-#        return [call(f, a, b, xdepth-1, ydepth-1) for a, b in zip(x, y)]
+    if xr and yr and len(x) == len(y):
+        return [call(f, a, b, xdepth-1, ydepth-1) for a, b in zip(x, y)]
     if xr:
         return [call(f, z, y, xdepth-1, ydepth) for z in x]
     elif yr:
@@ -401,6 +430,8 @@ class InterpreterVisitor(PTNodeVisitor):
         return withAdverb(node[0].value, children[1])
 
     def visit_conjunction(self, node, children):
+        if len(children) == 1:
+            return children[0]
         if sum(1 for c in children if isinstance(c, tuple) or hasattr(c, '__call__'))>1:
             conjs = [x.value for x in node if x.value in conjunctions]
             children = [c for c in children if c not in conjunctions]
@@ -418,6 +449,8 @@ class InterpreterVisitor(PTNodeVisitor):
                 conjs = conjs[1:]
             return g
         return withConjunction(children[1], children[2], children[0])
+
+    visit_conjlvl1 = visit_conjlvl2 = visit_conjlvl3 = visit_conjunction
 
     def visit_function(self, node, children):
         return children[0]
@@ -488,8 +521,6 @@ class InterpreterVisitor(PTNodeVisitor):
                     vx = fx
                 vy = call(ff, vx, vy)
                 fs = fs[2:]
-            if len(fs) == 1:
-                vy = call(fs[0], y, vy) if y is not None else call(fs[0], x, vy)
             return vy
         f.rank = (MAXRANK, MAXRANK, MAXRANK)
         if len(children) > 1:
@@ -508,13 +539,16 @@ def printtable(v, w=0):
     if dv == 0:
         print(v)
     elif dv == 1:
+        ls = False
         for x in v:
-            print(('{:'+str(w)+'}').format(x), end=' '*(not isinstance(x, str)))
+            s = isinstance(x, str)
+            print((' '*(ls and not s))+(('{:'+str(w)+'}' if w else '{0}').format(x)), end=' '*(not s))
+            ls = s
         print()
     elif dv > 1:
         vl = len(v)
         if w == 0:
-            w = max(len(str(x)) for x in flatten(v))
+            w = max(len(str(1 if x == 1 or x == 0 else x)) for x in flatten(v))
         for i, x in enumerate(v):
             printtable(x, w)
             if i < vl-1:

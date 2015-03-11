@@ -1,4 +1,5 @@
 # Quick tutorial
+### Note: Some of the syntax rules are currently outdated. I'll fix this tutorial ASAP.
 ## Index
 * [Syntax reference](#syntax-reference)
 * [More about functions](#more-about-functions)

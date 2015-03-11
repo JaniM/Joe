@@ -2,18 +2,24 @@
 ### Adverbs
 Adverbs take only one argument, which is an immediately following function, and return a new function.
 
-* `~F` flips the arguments of the function. Informally: `x ~F y` is `y F x`
-* `/F` has two meanings, depending if it's called monadically or dyadically.
-  * `/F y` applies F between all items of y. For example: `/+1 2 3` is `1+2+3`
-  * `x /F y` maps `x /F` to all items of y. For example: `1 2/+1 2 3` is `(1 2+1) (1 2+2) (1 2+3)`
+ ~F    flips the arguments of the function. Informally: `x ~F y` is `y F x`
+ /F    has two meanings, depending if it's called monadically or dyadically.
+   /F y   applies F between all items of y. For example: `/+1 2 3` is `1+2+3`
+   x /F y maps `x /F` to all items of y. For example: `1 2/+1 2 3` is `(1 2+1) (1 2+2) (1 2+3)`
+ MF    is a shorthand for giving rank -1 -1 -1
 
 ### Conjunctions
 Conjunctions always take two arguments, where left argument either a literal or a function, and right argument is a function. They can return anything.
 
-* `r^F` gives a function, which calls F with rank r.
-* `F@G` gives a function, which passes the result of G to F. Informally: `x F@G y` is `F x G y`
-* `v@F` gives a function which uses F to select a function from v if v is a list. Has rank of F.
-* `F\`G` gives a list with F and G. If F is a list, G is appended to it.
+ r^F  gives a function, which calls F with rank r.
+ v/,F gives a folding function, which has a preset starting value of v.
+ F@G  gives a function, which passes the result of G to F. Informally: `x F@G y` is `F x G y`
+ v@F  gives a function which uses F to select a function from v if v is a list. Has rank of F.
+ F`G  gives a list with F and G. If F is a list, G is appended to it.
+ F$G  when called monadically: (y F x G y)
+                  dyadically:  (y F G y)
+ F$,G when called monadically: ((x G y) F y)
+                  dyadically:  ((G y) F y)
 
 ### Functions
 x is always the left argument
@@ -40,24 +46,36 @@ name | rank  | definitions
 <,   | 0 0 0 | returns smaller of x and y
 >,   | 0 0 0 | returns greater of x and y
 =    | 0 0 0 | returns x==y - x defaults to 0
+]    | M 0 M | nests x to a list y times - y defaults to 1
+-,   | M M M | removes items of y from x - y defaults to [0]
+-:   | M M M | dyad:  returns items of x which are in y
+               monad: return unique items of x
 A    | M M M | returns y
 B    | M M M | returns x
-R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
-               monad: gives numbers from 0 to y, exclusive
-T    | 1 1 1 | dyad:  gives a table of shape x, using items of y cyclically
-               monad: same, but uses range from 0 to infinity
+C    | M 0 M | counts the occurences of y in x
 D    | M M M | gives the depth of y
-L    | M M M | gives the length of y
-S    | 1 1 1 | splits y by x - x defaults to " "
-I    | 1 0 1 | converts string y to integer with base x - x defaults to 10
+E    | M 0 M | dyad:  returns the last x items of y
+               m0nad: returns the last item of y
 F    | 1 0 1 | converts string y to float
+H    | M 0 M | dyad:  returns the first x items of y
+               monad: returns the first item of y
+I    | 1 0 1 | converts string y to integer with base x - x defaults to 10
+J    | M 1 M | joins items of y to a list by interleaving them with all items of x
+L    | M M M | gives the length of y
 Ld   | M 0 M | drops the first x items of y - x defaults to 1
 Lr   | M 0 M | drops the last x items of y - x defaults to 1
 Lt   | M M M | nests y by two levels (returns [[y]])
-H    | M 0 M | dyad:  returns the first x items of y
-               monad: returns the first item of y
-E    | M 0 M | dyad:  returns the last x items of y
-               m0nad: returns the last item of y
 N    | 1 0 M | returns the xth item of y - x defaults to 0
+O    | M M M | dyad:  sorts y using the indexes of sorted x
+               monad: sorts y
 P    | M 1 M | prints y formatted with x (using Python's format) - returns 0
+R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
+               monad: gives numbers from 0 to y, exclusive
+S    | M M M | splits y by x (both can be any lists) - x defaults to " "
+T    | 1 1 1 | dyad:  gives a table of shape x, using items of y cyclically
+               monad: same, but uses range from 0 to infinity
+V    | M M M | monad: reverses y
+
+### Initial variables
+Z    | empty list
 

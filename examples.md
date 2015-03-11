@@ -29,19 +29,26 @@
     * `/*` gives the product of the given list
     * `-,` removes the items of the left argument from the right argument. Because no left argument was given, it removes zeroes.
     * `1R` gives a list from 1 to the argument, inclusive
-
     * `R10` gives a list from 0 to 9
     * `MFac` maps Fac to them
 
 * Fibonacci sequence
 
     ```
-       F:0 1/,{A;/+@2E)R
+       F:2Lr0 1/,;$/+@2ER
        F10
-    [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+    [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
     ```
 
-    Explanation coming
+    Explanation: Here we see a lot of new features. Let's look at what each function does from right-to-left
+      * `R` gives a range from 0 to x.
+      * `;$/+@2E` takes a list as it's right argument and appends the sum of the two last elements to it.
+        * `2E` takes the last two elements
+        * `/+` sums them
+        * `;` concats two values
+        * `F$G x` gets evaluated as `x F G x`
+      * `0 1/,` right-folds the list, starting with the value of `[0, 1]`. This is the magic.
+      * `2Lr` drops the last two elements. Without it, two extra numbers would be returned.
 
 ## Code golf examples
 
