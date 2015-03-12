@@ -541,15 +541,18 @@ def printtable(v, w=0):
     elif dv == 1:
         ls = False
         vl = len(v)
+        if w == 0:
+            w = [0]*len(v)
         for i, x in enumerate(v):
             s = isinstance(x, str)
-            print((' '*(ls and not s))+(('{:'+str(w)+'}' if w else '{0}').format(x)), end=' '*(i<vl-1 and not s))
+            print((' '*(ls and not s))+(('{:'+str(w[i])+'}' if w else '{0}').format(x)), end=' '*(i<vl-1 and not s))
             ls = s
         print()
     elif dv > 1:
         vl = len(v)
-        if w == 0:
-            w = max(len(str(1 if x == 1 or x == 0 else x)) for x in flatten(v))
+        if dv == 2:
+            mw = max(map(len, v))
+            w = [max(len(str(0 if len(x) <= i else 1 if x[i] == 1 or x[i] == 0 else x[i])) for x in v) for i in range(0, mw)]
         for i, x in enumerate(v):
             printtable(x, w)
             if i < vl-1:
