@@ -1,5 +1,4 @@
 # Quick tutorial
-### Note: Some of the syntax rules are currently outdated. I'll fix this tutorial ASAP.
 ## Index
 * [Syntax reference](#syntax-reference)
 * [More about functions](#more-about-functions)
@@ -17,20 +16,30 @@ You should also look at [Function reference](reference.txt) and [examples](../ex
   * String: `"a \"feather\""`
   * Lists: `1 2 3` - can contain any of the preceding literals and any expressions surrounded by braces.
 * Function calls
-  * Functions are referenced by `[A-W][a-z]*`
+  * Functions are referenced by `[A-W][a-z]*` and certain operators followed by 0 or more of `,;:`
   * Functions always take one or two parameters, in the syntax `Fy` or `xFy`, where x is a literal immediately preceding the function and y is everything following it. The left and right argument are always referenced as X and Y, respectively.
   * Modifiers take functions as their arguments and return new functions. They're referenced as A for adverb and C for conjunction.
     * `AF`
-    * `vCF`, `FCF` (v is a literal argument to the conjunction)
+    * `vCF` or `FCG` (v is a literal argument to the conjunction)
 * Assignment
   * `name:value`
-  * If the name is `[X-Z][a-z]*`, the value is treated as an atom.
-  * If the name is `[A-W][a-z]*`, the value is treated as a tacit expression, without curly braces.
+  * If the name is `[X-Z][a-z]*`, the value is treated as a function call, yielding a value.
+  * If the name is `[A-W][a-z]*`, the value is treated as a chain expression, without braces. See below.
 * Function definitions
-  * Functions are defined in so called tacit form.
-  * `x{FGH}y` is run as `(xFy) G (xHy)`
-  * The tacit expression can contain more than three functions, in which case the functions are read right-to-left and paired to tacit-expressions.
-    * Example: `{ABCDE}` -> `{AB{CDE}}`
+  * Function definitions can appear anywhere in the source
+  * Functions are defined in two distinct ways.
+  * Tacit
+    * `{FG)y` is run as `y F G y`
+    * `x{FG)y` is run as `x F G y`
+    * `{FGH)y` is run as `F G H y`
+    * `x{FGH)y` is run as `(xFy) G (xHy)`
+    * The tacit expression can contain more than three functions, in which case the functions are read right-to-left and paired to tacit-expressions.
+      * `{ABCD)` -> `{A{BCD))`
+      * `{ABCDE)` -> `{AB{CDE))`
+  * Chain
+    * `(FGH)y` is run as `F G H y`
+    * `x(FGH)y` is run as `x F x G x H y`
+    * Chain can contain any amount of functions. If it has only one function, that function is used as is.
   * If a literal immediately precedes a function, it is bound as the left argument of the function.
     * Example:
 
@@ -138,4 +147,39 @@ Note: Rank can be negative, in which case ... hard to explain, have an example. 
 
 #### Padding
 Padding is a more subtle technique, It ensures that the function's arguments have at least the required rank to operate correctly. For example, monadic `;` flattens a list by one level. For this to work, the argument must have at least a rank of 2. Padding ensures that it is. In effect, `;10` gives `[10]`. Padding can't be affected by code.
+
+## Defining functions
+There are multitude of techniques to define functions in Joe. We should glance over some of the most important techniques and conjunctions to shave off all those pesty bytes.
+
+#### Chaining
+Chaining is, in my humble opinion, the most important thing you need to master to write efficient functions. When you define a chain, you create a way to reuse the left argument multiple times, or in the case of a monad, just a way to pipe the right argument through the functions. 
+
+The implications might not be obvious, but let's take a look at a couple of fnctions.
+
+* Consider we would want a function that gives the right argument doubled, and optionally the left argument doubled. (Yes, it's quite hypothetical, but I find it a good example)
+
+    ```
+       F:+2*
+       F10
+    20
+       3F10
+    23
+    ```
+
+  The assignment begins a chain of two functions: `+` and `2*`. When we call `F10`, it gets evaluated as `+2*10`. Monad addition is a no-op, so it returns just 20. What if we call `3F10`? That gets evaluated as `3+3(2*)10`. When the left value of a function is bound, it ignores any left value given to it. So, this gets simplified to `3+2*10`, which of course gives 23.
+
+* The factorial function. This only uses the monadic case of chaining.
+
+    ```
+       Fac:/*-,1R
+       MFacR10
+    [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880]
+    ```
+
+  Fac, when you call it, evaluates `/*-,1R y`. Let's look at what each step does. `1Ry` gives range from 1 to y, inclusive. That gets passed to monadic `-,`, which removes any zeroes from the list (handles the special case, because `1R0` gives `[1, 0]`, which becomes `[1]`). Then, `/*` gives the product of the list.
+
+  I also show a way to map functions. `MFac` is a shorthand for `_1^Fac`. which applies the function to all elements of the input. `R10` gives a list from 0 to 9. Thus, the output is the values of `Fac(0), Fac(1), ..., Fac(9)`.
+
+------
+More to come.
 
