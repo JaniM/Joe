@@ -29,7 +29,7 @@ grammar = r"""
     primitive  = r'[\!%=\?+*<>;|\]-][,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
-    adverb     = ('/' / '~' / 'M') advgroup
+    adverb     = ('/' / '~' / 'M' / "\\") advgroup
     advgroup   = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
     conjunction= conjlvl1 / conjlvl2 / conjlvl3
     conjlvl1   = literal ('^' / '/,') function
@@ -137,7 +137,7 @@ class SyntaxVisitor(PTNodeVisitor):
         return ('lambda', children[0])
 
 depth = lambda x: isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
-foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs), s) if len(xs) else [])
+foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs[:-1] if s is None else xs), xs[-1] if s is None else s) if len(xs) else [])
 flip  = lambda f: rank(lambda x, y=None: f(y, x), (f.rank[0], f.rank[2], f.rank[1]))
 bind  = lambda f, x: rank(lambda y, _=0: call(f, x, y), rankof(f))
 def rank(f, r, p=(0, 0, 0)):
@@ -192,18 +192,18 @@ def nest(x, n):
 
 def split(l, splitter):
     sl = len(splitter)
-    ll = len(l)
     r = []
     curr = []
-    i = 0
-    while i < ll - sl:
-        if l[i:i+sl] == splitter:
+    while len(l):
+        if l[:sl] == splitter:
             r += [curr]
             curr = []
-            i += sl
+            l = l[sl:]
         else:
-            curr += l[i]
-            i += 1
+            curr += [l[0]]
+            l = l[1:]
+    if len(curr) > 0:
+        r += [curr]
     return r
 
 def join(l, j):
@@ -277,7 +277,9 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                (MAXRANK, MAXRANK, -1), (1, 0, 1)),
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            'M': lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
-                               (-1, -1, -1)), 
+                               (-1, -1, -1)),
+           '\\': lambda f: rank(lambda x, y=None: [call(f, x[:i]) if y is None else call(f, y, x[:i]) for i in range(1, len(x)+1)],
+                                (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
            }
 
 def agenda(f, a, x, y):
@@ -300,6 +302,8 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                        (MAXRANK, MAXRANK, MAXRANK))
                                   if not isinstance(g, list)
                                   else rank(lambda x, y=None: agenda(f, g, x, y), rankof(f)),
+                '@,': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
+                                       rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
                 '$': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
                                                     if y is not None
@@ -314,6 +318,8 @@ def partition(l, n):
 
 def table(l, dimensions):
     d = functools.reduce(lambda x, y: x*y, dimensions)
+    if d == 0:
+        return []
     while len(l) < d:
         l = l + l
     l = l[:d]
@@ -337,7 +343,7 @@ functions = {'A': lambda x, y=None: x,
              'E': rank(lambda x, y=None: (x[-1] if y is None else x[-y:]) if x else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
              'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
-             'I': rank(lambda x, y=10: float(int(x, y)), (1, 0, 1)),
+             'I': rank(lambda x, y=10: int(''.join(x), y) if isinstance(x, list) else int(x), (0, 0, 1)),
              'J': rank(lambda x, y=['']: join(x, y), (MAXRANK, 1, MAXRANK), (2, 1, 2)), 
              'L': lambda x, y=None: len(x),
              'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
@@ -357,7 +363,7 @@ functions = {'A': lambda x, y=None: x,
                        (0, 0, 0)),
              'S': rank(lambda x, y=[' ']: split(x, y), (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)),
              'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
-                                         if x != [0] else [])
+                                          if x != [0] else [])
                                          if y is None
                                          else table(x, y),
                        (1, 1, 1), (1, 1, 1)),
@@ -391,10 +397,10 @@ def call(f, x, y=None, xdepth=0, ydepth=0):
     elif yr:
         return [call(f, x, z, xdepth, ydepth-1) for z in y]
     pad = padrank(f)
-    if dx < pad[1] != isinstance(x, str):
+    if dx < pad[1]:
         for _ in range(pad[1] - dx):
             x = [x]
-    if dy < pad[2] != isinstance(y, str):
+    if dy < pad[2]:
         for _ in range(pad[2] - dy):
             y = [y]
 #    if not hasattr(f, '__call__'):
@@ -542,7 +548,7 @@ def printtable(v, w=0):
         ls = False
         vl = len(v)
         if w == 0:
-            w = [0]*len(v)
+            w = [1]*len(v)
         for i, x in enumerate(v):
             s = isinstance(x, str)
             print((' '*(ls and not s))+(('{:'+str(w[i])+'}' if w else '{0}').format(x)), end=' '*(i<vl-1 and not s))

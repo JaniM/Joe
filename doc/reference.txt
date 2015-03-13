@@ -7,6 +7,9 @@ Adverbs take only one argument, which is an immediately following function, and 
    /F y   applies F between all items of y. For example: `/+1 2 3` is `1+2+3`
    x /F y maps `x /F` to all items of y. For example: `1 2/+1 2 3` is `(1 2+1) (1 2+2) (1 2+3)`
  MF    is a shorthand for giving rank -1 -1 -1
+ \F
+   \F y   applies F to increasing subsets of y (0, 1, 2, 3... elements). Think of as scan.
+   x \F y applies F to windows of y of width x
 
 ### Conjunctions
 Conjunctions always take two arguments, where left argument either a literal or a function, and right argument is a function. They can return anything.
@@ -28,6 +31,7 @@ y is always the right argument
 name | rank  | definitions
 +    | 0 0 0 | gives the sum of x and y - x defaults to 0
 -    | 0 0 0 | gives the difference of y from x - `2-5` is 3 - x defaults to 0
++,   | M M M | gives x + [y] - padding of 0 1 0
 *    | 0 0 0 | dyad:  gives the product of x and y
                monad: gives the sign of y, which is -1, 0 or 1
 %    | 0 0 0 | gives the dividend of x and y - x defaults to 0

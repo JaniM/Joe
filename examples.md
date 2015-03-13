@@ -55,7 +55,7 @@
 * [Home on the Range of Lists](http://codegolf.stackexchange.com/q/47351/20356)
 
     ```
-       F:/+,R
+       F:/+,M]R
        F10
     [0, [1, [2, [3, [4, [5, [6, [7, [8, [9]]]]]]]]]]
        F3
@@ -68,8 +68,9 @@
     []
     ```
 
-  Explanation: Function definition initiates a chain of functions. The function is evaluated as `/+,(RY)` or `X/+,(XRY)`, depending on if it's called monadically or dyadically.
-    * `/+,` gives the fold of `+,`, which returns `x + [y]`
+  Explanation: Function definition initiates a chain of functions. The function is evaluated as `/+,(M](RY))` or `X/+,(XM](XRY))`, depending on if it's called monadically or dyadically.
     * `R` gives the range from 0 to Y.
+    * `M]` wraps every element to a list.
+    * `/+,` gives the fold of `+,`, which returns `x + [y]`
 
 
