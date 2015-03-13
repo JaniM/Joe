@@ -585,7 +585,10 @@ if __name__ == '__main__':
                             printtable(v)
                         else:
                             try:
-                                print(''.join(v))
+                                if len(v) == 0:
+                                    print('[]')
+                                else:
+                                    print(''.join(v))
                             except:
                                 print(v)
                 except Exception as e:
