@@ -310,7 +310,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                 '@,': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
                                        rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
-                '$': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
+                '$': lambda f, g: lambda x, y=None: call(g, y, call(f, y, x))
                                                     if y is not None
                                                     else call(g, x, call(f, x)), 
                 '$,': lambda f, g: lambda x, y=None: call(g, call(f, y, x), y)
@@ -376,6 +376,11 @@ functions = {'A': lambda x, y=None: x,
                        (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1)), 
              'Z': [] 
              }
+
+# NOT DOCUMENTED
+synonyms = {'Oh': 'O$,MH',
+            'Oe': 'O$,ME',
+            }
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
     x, y, f = resolve(x), resolve(y), resolve(f)
@@ -470,7 +475,7 @@ class InterpreterVisitor(PTNodeVisitor):
         return primitives[node.value]
 
     def visit_namedfunc(self, node, children):
-        return ('variable', node.value)
+        return ('variable', node.value) if node.value not in synonyms else parse(synonyms[node.value])
 
     def visit_item(self, node, children):
         return children[0]
@@ -569,8 +574,13 @@ def printtable(v, w=0):
             if i < vl-1:
                 print('\n'*(dv-2), end='')
 
+parser = ParserPEG(grammar, "program", skipws=False)
+
+def parse(code):
+    tree = parser.parse(code+'\n')
+    return visit_parse_tree(tree, InterpreterVisitor())[0]
+
 if __name__ == '__main__':
-    parser = ParserPEG(grammar, "program", skipws=False)
     tablemode = '-t' in sys.argv
     if '-h' in sys.argv or '--help' in sys.argv or len(sys.argv) == 1:
         print("Joe Interpreter - Version " + version)
@@ -580,6 +590,7 @@ if __name__ == '__main__':
         print("    -h     show this help")
         print("    -repl  starts REPL")
         print("    -t     prints lists as tables")
+        print("    -test  run after making changes to the interpreter to check damages")
     elif '-test' in sys.argv:
         fails = []
         for c, r in tests:

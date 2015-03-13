@@ -50,6 +50,24 @@
       * `0 1/,` right-folds the list, starting with the value of `[0, 1]`. This is the magic.
       * `2Lr` drops the last two elements. Without it, two extra numbers would be returned.
 
+* Count letters in a word
+
+    ```
+       F:VOeM;$C$,-:
+       F"this is a sentence"
+    e 3
+      3
+    s 3
+    n 2
+    i 2
+    t 2
+    c 1
+    a 1
+    h 1
+    ```
+
+    Explanation coming soon.
+
 ## Code golf examples
 
 * [Home on the Range of Lists](http://codegolf.stackexchange.com/q/47351/20356)
