@@ -14,6 +14,11 @@ from arpeggio import PTNodeVisitor, visit_parse_tree
 version = "0.1.0"
 MAXRANK = 100
 
+tests = [("""{/+%L)1 2 3 4""", 2.5),
+         ("""(/*-,1R)5""", 120),
+         ("""(2Lr0 1/,;$/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
+         ]
+
 grammar = r"""
     program    = (NL? statement)*
     statement  = (space? expression)+
@@ -575,6 +580,22 @@ if __name__ == '__main__':
         print("    -h     show this help")
         print("    -repl  starts REPL")
         print("    -t     prints lists as tables")
+    elif '-test' in sys.argv:
+        fails = []
+        for c, r in tests:
+            tree = parser.parse(c+'\n')
+            v = visit_parse_tree(tree, InterpreterVisitor())[0]
+            if v != r:
+                fails += [(c, r, v)]
+        if fails:
+            print("Failed tests:")
+            for c, r, v in fails:
+                print("  Code:     " + c)
+                print("  Expected: " + str(r))
+                print("  Got:      " + str(v))
+                print()
+        else:
+            print("Everything works.")
     elif '-repl' in sys.argv:
         print("Joe REPL - Version " + version)
         print("Type exit to exit.")
