@@ -11,12 +11,13 @@ from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
 
-version = "0.1.0"
+version = "0.1.1"
 MAXRANK = 100
 
 tests = [("""{/+%L)1 2 3 4""", 2.5),
          ("""(/*-,1R)5""", 120),
-         ("""(2Lr0 1/,;$/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
+         ("""(2Lr0 1/,{A;/+@2E)R)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
+         ("""(VOeM;$C$,-:)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]),
          ]
 
 grammar = r"""
@@ -230,6 +231,28 @@ def unique(l, idfun=None):
         result.append(item)
     return result
 
+def int2base(x, base):
+    if x == 0: return [0]
+    digits = []
+    while x:
+        digits.append(x % base[-1])
+        x /= base[-1]
+        x = int(x)
+        if len(base) > 1:
+            base = base[:-1]
+    digits.reverse()
+    return digits
+
+def base2int(l, base):
+    r = 0
+    while len(l):
+        r += l[0] * base[-1]**(len(l)-1)
+        if len(base) > 1:
+            base = base[:-1]
+        l = l[1:]
+    return r
+
+
 # Please remember: x is the right argument and y is the left one.
 
 primitives = {'+': lambda x, y=0: y + x,
@@ -342,6 +365,10 @@ def flatten(l):
 
 functions = {'A': lambda x, y=None: x,
              'B': lambda x, y=None: y if y is not None else x,
+             'Ba': rank(lambda x, y=[2]: int2base(x, y),
+                        (0, 1, 0), (0, 1, 0)), # NOT DOCUMENTED
+             'Bn': rank(lambda x, y=[2]: base2int(x, y),
+                        (1, 1, 1), (1, 1, 1)), # NOT DOCUMENTED
              'C': rank(lambda x, y=1: sum(1 for z in x if z == y),
                        (MAXRANK, -1, MAXRANK), (1, 0, 1)), 
              'D': lambda x, y=None: +depth(x),
@@ -362,6 +389,10 @@ functions = {'A': lambda x, y=None: x,
                        (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)), 
              'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
                        (MAXRANK, 1, MAXRANK), (0, 0, 1)),
+             'Ps': rank(lambda x, y=0: [0]*(y-len(x))+x,
+                        (MAXRANK, 0, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
+             'Pe': rank(lambda x, y=0: x+[0]*(y-len(x)),
+                        (MAXRANK, 0, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
              'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
@@ -393,13 +424,13 @@ def call(f, x, y=None, xdepth=0, ydepth=0):
 #        if not hasattr(f, '__call__'):
 #            return f
         pad = padrank(f)[0]
-        if dx < pad and isinstance(x, str) != pad:
+        if dx < pad:
             for _ in range(pad - dx):
                 x = [x]
         return f(x)
     dx, dy = depth(x), depth(y)
-    xr = 0 > lrank < xdepth or dx > lrank >= 0
-    yr = 0 > rrank < ydepth or dy > rrank >= 0
+    xr = (0 > lrank < xdepth or dx > lrank >= 0) and isinstance(x, list)
+    yr = (0 > rrank < ydepth or dy > rrank >= 0) and isinstance(y, list)
     if xr and yr and len(x) == len(y):
         return [call(f, a, b, xdepth-1, ydepth-1) for a, b in zip(x, y)]
     if xr:
