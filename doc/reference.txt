@@ -75,11 +75,11 @@ H    | M 0 M | dyad:  returns the first x items of y
 I    | 1 0 1 | converts string y to integer with base x - x defaults to 10
 Ir   | 0 M 0 | rounds float y to integer
 J    | M 1 M | joins items of y to a list by interleaving them with all items of x
-L    | M M M | gives the length of y
 Ld   | M 0 M | drops the first x items of y - x defaults to 1
 Lr   | M 0 M | drops the last x items of y - x defaults to 1
 Lt   | M M M | nests y by two levels (returns [[y]])
-N    | 1 0 M | returns the xth item of y - x defaults to 0
+N    | M 0 M | dyad:  returns the xth item of y - if x is float, returns y[int(len(y)*x)]
+               monad: returns length of y
 O    | M M M | dyad:  sorts y using the indexes of sorted x
                monad: sorts y
 P    | M M M | transposes y, filling with x if necessary - x defaults to 0

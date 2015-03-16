@@ -5,17 +5,17 @@
 * Mean of a list
 
     ```
-       F:{/+%L
+       F:{/+%N
        F1 2 3 4
     2.5
        F1 2 3 4 5
     3.0
     ```
   
-  Explanation: `{/+%L)` defines a fork. The superfluous ending brace can be dropped. Let's denote the argument as Y. When we call the function, it gets interpreted as `(/+Y)%(LY)`.
+  Explanation: `{/+%N)` defines a fork. The superfluous ending brace can be dropped. Let's denote the argument as Y. When we call the function, it gets interpreted as `(/+Y)%(NY)`.
     * `/+` gives the sum of a list
     * `%` divides the left argument by the right argument
-    * `L` gives the length of a list
+    * `N` gives the length of a list
 
 * Factorial
 
