@@ -7,17 +7,22 @@
 
 import sys
 import functools
+import itertools
+import random
+import math
+import marshal
 from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
 
-version = "0.1.1"
+version = "0.1.2"
 MAXRANK = 100
 
 tests = [("""{/+%L)1 2 3 4""", 2.5),
          ("""(/*-,1R)5""", 120),
-         ("""(2Lr0 1/,{A;/+@2E)R)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
+         ("""(2Lr0 1/,;$:/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
          ("""(VOeM;$C$,-:)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]),
+         ("""M-,~/!R5""", [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]),
          ]
 
 grammar = r"""
@@ -46,8 +51,8 @@ grammar = r"""
     tacitb     = '{' tacit ')'?
     lambda     = '[' statement ')'?
 
-    assignment = r'[A-W][a-z]*' space? ':' space? combination
-               / r'[X-Z][a-z]*' space? ':' space? call
+    assignment = r'[A-W][a-z]*'? space? ':' space? combination
+               / r'[X-Z][a-z]*'? space? ':' space? call
     combination= function+
 
     item       = braces / number / string / variable
@@ -69,6 +74,31 @@ whitespace = ' \t'
 newline = '\n'
 node = lambda f: lambda self, node, children: f(node.value)
 ignore = lambda words, l: [x for x in l if not any(x == w for w in words)]
+
+def memoize(f): 
+    """Memoize any function."""
+    cache = {}
+    def decorated(*args):
+        key = marshal.dumps(args)
+        if key in cache:
+            return cache[key]
+        r = f(*args)
+        cache[key] = r
+        return r
+    return decorated
+
+def memoizef(f):
+    cache = {}
+    def deco(*args):
+        key = tuple(args)
+        if key in cache:
+            return cache[key]
+        r = f(*args)
+        cache[key] = r
+        return r
+    return deco
+
+usermemoize = memoizef
 
 # For printing the AST.
 class SyntaxVisitor(PTNodeVisitor):
@@ -236,49 +266,96 @@ def int2base(x, base):
     digits = []
     while x:
         digits.append(x % base[-1])
-        x /= base[-1]
-        x = int(x)
+        x //= base[-1]
         if len(base) > 1:
             base = base[:-1]
     digits.reverse()
     return digits
 
 def base2int(l, base):
+    l = l[::-1]
     r = 0
+    x = 0
     while len(l):
-        r += l[0] * base[-1]**(len(l)-1)
+        r += l[0] * base[0]**x
+        x += 1
         if len(base) > 1:
-            base = base[:-1]
-        l = l[1:]
+            base = base[1:]
+        if l[0] < base[-1]:
+            l = l[1:]
+        else:
+            l[0] = int(l[0] / base[0])
     return r
 
+def padarray(l, lr=0, padder=0):
+    l = [x if isinstance(x, list) else [x] for x in l]
+    w = max(len(x) for x in l)
+    if lr == 0:
+        return [[padder]*(w-len(x))+x for x in l]
+    else:
+        return [x+[padder]*(w-len(x)) for x in l]
+
+@memoizef
+def combinations(n, r):
+    if r > n:
+        return 0
+    return int(math.factorial(n) / (math.factorial(n - r) * math.factorial(r)))
+
+def windows(l, w):
+    i = 0
+    ll = len(l)
+    r = []
+    if w > 0:
+        while i < ll - w + 1:
+            r += [l[i:i+w]]
+            i += 1
+    else:
+        w = -w
+        while i < ll - w:
+            r += [l[i:i+w]]
+            i += w
+        if i < ll:
+            r += [l[i:]]
+    return r
 
 # Please remember: x is the right argument and y is the left one.
 
 primitives = {'+': lambda x, y=0: y + x,
               '+,': lambda x, y=[]: y + [x], 
+              '+:': lambda x, y=False: x and y, # NOT DOCUMENTED
               '-': lambda x, y=None: x-y if y is not None else -x,
               '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
+              '*:': lambda x, y=False: x or y, # NOT DOCUMENTED
+              '*,': lambda x, y=2: x ** y, # NOT DOCUMENTED
               '%': lambda x, y=1: y/x,
               ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
               ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
               '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x,
-              '<': lambda x, y=0: x<y,
-              '>': lambda x, y=0: x>y,
-              '<:': lambda x, y=None: x<=y if y is not None else x-1,
-              '>:': lambda x, y=None: x>=y if y is not None else x+1,
+              '<': lambda x, y=0: x>y,
+              '>': lambda x, y=0: x<y,
+              '<:': lambda x, y=0: x>=y, # NOT DOCUMENTED
+              '>:': lambda x, y=0: x<=y, # NOT DOCUMENTED
               '<,': lambda x, y=None: x if y is None else x if x<y else y,
               '>,': lambda x, y=None: x if y is None else x if x>y else y,
               '=': lambda x, y=0: x==y,
               ']': lambda x, y=1: nest(x, y), 
               '-,': lambda x, y=[0]: [z for z in x if z not in y], 
               '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
+              '?': lambda x, y=None: table([random.random() for _ in range(foldr(lambda x, y: x*y, x))], x)
+                                     if y is None
+                                     else table([random.uniform(0, y) for _ in range(foldr(lambda x, y: x*y, x))], x), # NOT DOCUMENTED
+              '!': lambda x, y=None: math.factorial(x)
+                                     if y is None
+                                     else combinations(x, y), # NOT DOCUMENTED
               }
 primitives['+'].rank = (0, 0, 0)
 primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+primitives['+:'].rank = (0, 0, 0)
 primitives['+,'].pad = (0, 1, 0)
 primitives['-'].rank = (0, 0, 0)
 primitives['*'].rank = (0, 0, 0)
+primitives['*,'].rank = (0, 0, 0)
+primitives['*:'].rank = (0, 0, 0)
 primitives['%'].rank = (0, 0, 0)
 primitives[';'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives[';'].pad = (2, 1, 1)
@@ -297,17 +374,22 @@ primitives['-,'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives['-,'].pad = (1, 1, 1)
 primitives['-:'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives['-:'].pad = (1, 1, 1)
+primitives['?'].rank = (1, 0, 1)
+primitives['?'].pad = (1, 0, 1)
+primitives['!'].rank = (0, 0, 0)
 
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
                                    if y is None \
                                    else call(f, y, x),
-                               (MAXRANK, MAXRANK, -1), (1, 0, 1)),
+                               (MAXRANK, MAXRANK, -1), (1, 0, 0)),
            '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
            'M': lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
                                (-1, -1, -1)),
-           '\\': lambda f: rank(lambda x, y=None: [call(f, x[:i]) if y is None else call(f, y, x[:i]) for i in range(1, len(x)+1)],
-                                (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
+           '\\': lambda f: rank(lambda x, y=None: [call(f, x[:i]) for i in range(1, len(x)+1)]
+                                                  if y is None
+                                                  else [call(f, i) for i in windows(x, y)],
+                                (MAXRANK, 0, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
            }
 
 def agenda(f, a, x, y):
@@ -331,7 +413,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                   if not isinstance(g, list)
                                   else rank(lambda x, y=None: agenda(f, g, x, y), rankof(f)),
                 '@,': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
-                                       rankof(f)),
+                                        rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
                 '$': lambda f, g: lambda x, y=None: call(g, y, call(f, y, x))
                                                     if y is not None
@@ -339,6 +421,9 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                 '$,': lambda f, g: lambda x, y=None: call(g, call(f, y, x), y)
                                                      if y is not None
                                                      else call(g, call(f, x), x), 
+                '$:': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
+                                                     if y is not None
+                                                     else call(g, x, call(f, x)),
                 }
 
 def partition(l, n):
@@ -371,28 +456,40 @@ functions = {'A': lambda x, y=None: x,
                         (1, 1, 1), (1, 1, 1)), # NOT DOCUMENTED
              'C': rank(lambda x, y=1: sum(1 for z in x if z == y),
                        (MAXRANK, -1, MAXRANK), (1, 0, 1)), 
+             'Ch': rank(lambda x, y=None: chr(x),
+                        (0, MAXRANK, 0)), # NOT DOCUMENTED
+             'Co': rank(lambda x, y=None: ord(x),
+                        (0, MAXRANK, 0)), # NOT DOCUMENTED
              'D': lambda x, y=None: +depth(x),
              'E': rank(lambda x, y=None: (x[-1] if y is None else x[-y:]) if x else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
              'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'I': rank(lambda x, y=10: int(''.join(x), y) if isinstance(x, list) else int(x), (0, 0, 1)),
+             'Ir': rank(lambda x, y=None: int(x) if x - int(x) < 0.5 else int(x+0.5),
+                        (0, MAXRANK, 0)), # NOT DOCUMENTED
              'J': rank(lambda x, y=['']: join(x, y), (MAXRANK, 1, MAXRANK), (2, 1, 2)), 
-             'L': lambda x, y=None: len(x),
              'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'Lr': rank(lambda x, y=1: x[:-y] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'Lt': rank(lambda x, y=None: [[x]], (MAXRANK, MAXRANK, MAXRANK)),
-             'N': rank(lambda x, y=0: x[y],
-                       (1, 0, MAXRANK), (1, 0, 1)),
+             'N': rank(lambda x, y=None: len(x) if y is None else
+                                         x[y] if isinstance(y, int) else x[int(len(x)*y)],
+                       (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'O': rank(lambda x, y=None: [x[i] for i,_ in sorted(enumerate(y), key=lambda x:x[1])]
                                          if y is not None
                                          else sorted(x),
                        (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)), 
-             'P': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
-                       (MAXRANK, 1, MAXRANK), (0, 0, 1)),
-             'Ps': rank(lambda x, y=0: [0]*(y-len(x))+x,
-                        (MAXRANK, 0, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
-             'Pe': rank(lambda x, y=0: x+[0]*(y-len(x)),
-                        (MAXRANK, 0, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
+             'P': rank(lambda x, y=0: list(map(list, itertools.zip_longest(*x, fillvalue=y))),
+                       (MAXRANK, MAXRANK, MAXRANK), (2, 0, 2)), # NOT DOCUMENTED
+             'Pr': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
+                       (MAXRANK, 1, MAXRANK), (0, 0, 1)), # NOT DOCUMENTED
+             'Ps': rank(lambda x, y=None: padarray(x)
+                                          if y is None
+                                          else [0]*(y-len(x))+x,
+                        (MAXRANK, 0, MAXRANK), (2, 0, 1)), # NOT DOCUMENTED
+             'Pe': rank(lambda x, y=None: padarray(x, 1)
+                                          if y is None
+                                          else x+[0]*(y-len(x)),
+                        (MAXRANK, 0, MAXRANK), (2, 0, 1)), # NOT DOCUMENTED
              'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
@@ -429,8 +526,8 @@ def call(f, x, y=None, xdepth=0, ydepth=0):
                 x = [x]
         return f(x)
     dx, dy = depth(x), depth(y)
-    xr = (0 > lrank < xdepth or dx > lrank >= 0) and isinstance(x, list)
-    yr = (0 > rrank < ydepth or dy > rrank >= 0) and isinstance(y, list)
+    xr = isinstance(x, list) and (0 > lrank < xdepth or dx > lrank >= 0)
+    yr = isinstance(y, list) and (0 > rrank < ydepth or dy > rrank >= 0)
     if xr and yr and len(x) == len(y):
         return [call(f, a, b, xdepth-1, ydepth-1) for a, b in zip(x, y)]
     if xr:
@@ -542,10 +639,11 @@ class InterpreterVisitor(PTNodeVisitor):
         return ('variable', node.value)
 
     def visit_assignment(self, node, children):
-        functions[node[0].value] = resolve(children[-1])
+        functions[node[0].value if node[0].value != ':' else 'F'] = resolve(children[-1])
         return children[-1]
 
     def visit_combination(self, node, children):
+        @usermemoize
         def f(x, y=None):
             for f in reversed(children):
                 x = call(f, x) if y is None else call(f, y, x)
@@ -613,12 +711,25 @@ def parse(code):
 
 if __name__ == '__main__':
     tablemode = '-t' in sys.argv
+    if '-nm' in sys.argv:
+        memoize = memoizef = usermemoize = lambda f: f
+    else:
+        if '-mf' not in sys.argv:
+            usermemoize = lambda f: f
+        if '-nmc' in sys.argv:
+            memoize = lambda f: f
+        if '-nms' in sys.argv:
+            memoizef = lambda f: f
     if '-h' in sys.argv or '--help' in sys.argv or len(sys.argv) == 1:
         print("Joe Interpreter - Version " + version)
         print("Uses python 3 and arpeggio module. Install with pip install arpeggio.")
         print()
         print("  python joe.py [options] (-c code | file)")
         print("    -h     show this help")
+        print("    -mf    memoize user-defined functions (prevents changing output)")
+        print("    -nm    prevents all memoization")
+        print("    -nmc   prevents complex memoization")
+        print("    -nms   prevents simple memoization")
         print("    -repl  starts REPL")
         print("    -t     prints lists as tables")
         print("    -test  run after making changes to the interpreter to check damages")

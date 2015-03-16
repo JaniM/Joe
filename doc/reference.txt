@@ -9,7 +9,7 @@ Adverbs take only one argument, which is an immediately following function, and 
  MF    is a shorthand for giving rank -1 -1 -1
  \F
    \F y   applies F to increasing subsets of y (0, 1, 2, 3... elements). Think of as scan.
-   x \F y applies F to windows of y of width x
+   x \F y applies F to windows of y of width x (if x < 0, splits y to pieces of length abs(x))
 
 ### Conjunctions
 Conjunctions always take two arguments, where left argument either a literal or a function, and right argument is a function. They can return anything.
@@ -32,8 +32,11 @@ name | rank  | definitions
 +    | 0 0 0 | gives the sum of x and y - x defaults to 0
 -    | 0 0 0 | gives the difference of y from x - `2-5` is 3 - x defaults to 0
 +,   | M M M | gives x + [y] - padding of 0 1 0
++:   | 0 0 0 | gives x && y
 *    | 0 0 0 | dyad:  gives the product of x and y
                monad: gives the sign of y, which is -1, 0 or 1
+*,   | 0 0 0 | gives y ** x - x defaults to 2
+*:   | 0 0 0 | gives x || y
 %    | 0 0 0 | gives the dividend of x and y - x defaults to 0
 |    | 0 0 0 | dyad:  gives the modulo of x and y
                monad: gives the absolute value of y
@@ -43,10 +46,8 @@ name | rank  | definitions
                monad: flattens y completely
 <    | 0 0 0 | returns x<y
 >    | 0 0 0 | returns x>y
-<:   | 0 0 0 | dyad:  returns x<=y
-               monad: returns x+1
->:   | 0 0 0 | dyad:  returns x>=y
-               monad: returns x-1
+<:   | 0 0 0 | returns x<=y - x defaults to 0
+>:   | 0 0 0 | returns x>=y - x defaults to 0
 <,   | 0 0 0 | returns smaller of x and y
 >,   | 0 0 0 | returns greater of x and y
 =    | 0 0 0 | returns x==y - x defaults to 0
@@ -54,9 +55,17 @@ name | rank  | definitions
 -,   | M M M | removes items of y from x - y defaults to [0]
 -:   | M M M | dyad:  returns items of x which are in y
                monad: return unique items of x
+?    | 1 0 1 | dyad:  returns table of shape y with values from 0 to x, inclusive
+               monad: returns table of shape y with values from 0 to 1, inclusive
+!    | 0 0 0 | dyad:  gives combinations(y, x) - yCx - uses simple cache
+               monad: gives factorial of x
 A    | M M M | returns y
 B    | M M M | returns x
-C    | M 0 M | counts the occurences of y in x
+Ba   | 0 1 0 | maps integer y to base x - x defaults to [2] - experimentation recommended
+Bn   | 1 1 1 | reverse of Ba: 5Bn5Ba10 gives 10
+C    | M 0 M | counts the occurences of x in y
+Ch   | 0 M 0 | chr(y)
+Co   | 0 M 0 | ord(y)
 D    | M M M | gives the depth of y
 E    | M 0 M | dyad:  returns the last x items of y
                m0nad: returns the last item of y
@@ -64,6 +73,7 @@ F    | 1 0 1 | converts string y to float
 H    | M 0 M | dyad:  returns the first x items of y
                monad: returns the first item of y
 I    | 1 0 1 | converts string y to integer with base x - x defaults to 10
+Ir   | 0 M 0 | rounds float y to integer
 J    | M 1 M | joins items of y to a list by interleaving them with all items of x
 L    | M M M | gives the length of y
 Ld   | M 0 M | drops the first x items of y - x defaults to 1
@@ -72,7 +82,12 @@ Lt   | M M M | nests y by two levels (returns [[y]])
 N    | 1 0 M | returns the xth item of y - x defaults to 0
 O    | M M M | dyad:  sorts y using the indexes of sorted x
                monad: sorts y
-P    | M 1 M | prints y formatted with x (using Python's format) - returns 0
+P    | M M M | transposes y, filling with x if necessary - x defaults to 0
+Pr   | M 1 M | prints y formatted with x (using Python's format) - returns 0
+Ps   | M 0 M | dyad:  pads y to length of x, by prepending zeroes
+               monad: pads array y to rectangle by prepending zeroes to all items
+Pe   | M 0 M | dyad:  pads y to length of x, by appending zeroes
+               monad: pads array y to rectangle by appending zeroes to all items
 R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
                monad: gives numbers from 0 to y, exclusive
 S    | M M M | splits y by x (both can be any lists) - x defaults to " "
