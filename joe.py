@@ -18,7 +18,7 @@ from arpeggio import PTNodeVisitor, visit_parse_tree
 version = "0.1.2"
 MAXRANK = 100
 
-tests = [("""{/+%L)1 2 3 4""", 2.5),
+tests = [("""{/+%N)1 2 3 4""", 2.5),
          ("""(/*-,1R)5""", 120),
          ("""(2Lr0 1/,;$:/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
          ("""(VOeM;$C$,-:)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]),
