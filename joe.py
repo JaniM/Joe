@@ -11,6 +11,7 @@ import itertools
 import random
 import math
 import marshal
+import cmd
 from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
@@ -322,19 +323,19 @@ def windows(l, w):
 
 primitives = {'+': lambda x, y=0: y + x,
               '+,': lambda x, y=[]: y + [x], 
-              '+:': lambda x, y=False: x and y, # NOT DOCUMENTED
+              '+:': lambda x, y=False: x and y, 
               '-': lambda x, y=None: x-y if y is not None else -x,
               '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
-              '*:': lambda x, y=False: x or y, # NOT DOCUMENTED
-              '*,': lambda x, y=2: x ** y, # NOT DOCUMENTED
+              '*:': lambda x, y=False: x or y, 
+              '*,': lambda x, y=2: x ** y, 
               '%': lambda x, y=1: y/x,
               ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
               ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
               '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x,
               '<': lambda x, y=0: x>y,
               '>': lambda x, y=0: x<y,
-              '<:': lambda x, y=0: x>=y, # NOT DOCUMENTED
-              '>:': lambda x, y=0: x<=y, # NOT DOCUMENTED
+              '<:': lambda x, y=0: x>=y, 
+              '>:': lambda x, y=0: x<=y, 
               '<,': lambda x, y=None: x if y is None else x if x<y else y,
               '>,': lambda x, y=None: x if y is None else x if x>y else y,
               '=': lambda x, y=0: x==y,
@@ -343,10 +344,10 @@ primitives = {'+': lambda x, y=0: y + x,
               '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
               '?': lambda x, y=None: table([random.random() for _ in range(foldr(lambda x, y: x*y, x))], x)
                                      if y is None
-                                     else table([random.uniform(0, y) for _ in range(foldr(lambda x, y: x*y, x))], x), # NOT DOCUMENTED
+                                     else table([random.uniform(0, y) for _ in range(foldr(lambda x, y: x*y, x))], x), 
               '!': lambda x, y=None: math.factorial(x)
                                      if y is None
-                                     else combinations(x, y), # NOT DOCUMENTED
+                                     else combinations(x, y), 
               }
 primitives['+'].rank = (0, 0, 0)
 primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
@@ -389,7 +390,7 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
            '\\': lambda f: rank(lambda x, y=None: [call(f, x[:i]) for i in range(1, len(x)+1)]
                                                   if y is None
                                                   else [call(f, i) for i in windows(x, y)],
-                                (MAXRANK, 0, MAXRANK), (1, 0, 1)), # NOT DOCUMENTED
+                                (MAXRANK, 0, MAXRANK), (1, 0, 1)), 
            }
 
 def agenda(f, a, x, y):
@@ -451,22 +452,22 @@ def flatten(l):
 functions = {'A': lambda x, y=None: x,
              'B': lambda x, y=None: y if y is not None else x,
              'Ba': rank(lambda x, y=[2]: int2base(x, y),
-                        (0, 1, 0), (0, 1, 0)), # NOT DOCUMENTED
+                        (0, 1, 0), (0, 1, 0)), 
              'Bn': rank(lambda x, y=[2]: base2int(x, y),
-                        (1, 1, 1), (1, 1, 1)), # NOT DOCUMENTED
+                        (1, 1, 1), (1, 1, 1)), 
              'C': rank(lambda x, y=1: sum(1 for z in x if z == y),
                        (MAXRANK, -1, MAXRANK), (1, 0, 1)), 
              'Ch': rank(lambda x, y=None: chr(x),
-                        (0, MAXRANK, 0)), # NOT DOCUMENTED
+                        (0, MAXRANK, 0)), 
              'Co': rank(lambda x, y=None: ord(x),
-                        (0, MAXRANK, 0)), # NOT DOCUMENTED
+                        (0, MAXRANK, 0)), 
              'D': lambda x, y=None: +depth(x),
              'E': rank(lambda x, y=None: (x[-1] if y is None else x[-y:]) if x else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'F': rank(lambda x, y=None: float(x), (1, MAXRANK, 1)),
              'H': rank(lambda x, y=None: x[0] if y is None else x[:y], (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'I': rank(lambda x, y=10: int(''.join(x), y) if isinstance(x, list) else int(x), (0, 0, 1)),
              'Ir': rank(lambda x, y=None: int(x) if x - int(x) < 0.5 else int(x+0.5),
-                        (0, MAXRANK, 0)), # NOT DOCUMENTED
+                        (0, MAXRANK, 0)), 
              'J': rank(lambda x, y=['']: join(x, y), (MAXRANK, 1, MAXRANK), (2, 1, 2)), 
              'Ld': rank(lambda x, y=1: x[y:] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
              'Lr': rank(lambda x, y=1: x[:-y] if len(x) else x, (MAXRANK, 0, MAXRANK), (1, 0, 1)),
@@ -479,22 +480,24 @@ functions = {'A': lambda x, y=None: x,
                                          else sorted(x),
                        (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)), 
              'P': rank(lambda x, y=0: list(map(list, itertools.zip_longest(*x, fillvalue=y))),
-                       (MAXRANK, MAXRANK, MAXRANK), (2, 0, 2)), # NOT DOCUMENTED
-             'Pr': rank(lambda x, y=None: (print(y.format(*x)) if y is not None else print(x)) or 0,
-                       (MAXRANK, 1, MAXRANK), (0, 0, 1)), # NOT DOCUMENTED
+                       (MAXRANK, MAXRANK, MAXRANK), (2, 0, 2)), 
+             'Pr': rank(lambda x, y=None: (print(''.join(y).format(*map(str, x))) if y is not None else print(x)) or 0,
+                       (MAXRANK, 1, MAXRANK), (1, 1, 1)), 
              'Ps': rank(lambda x, y=None: padarray(x)
                                           if y is None
                                           else [0]*(y-len(x))+x,
-                        (MAXRANK, 0, MAXRANK), (2, 0, 1)), # NOT DOCUMENTED
+                        (MAXRANK, 0, MAXRANK), (2, 0, 1)), 
              'Pe': rank(lambda x, y=None: padarray(x, 1)
                                           if y is None
                                           else x+[0]*(y-len(x)),
-                        (MAXRANK, 0, MAXRANK), (2, 0, 1)), # NOT DOCUMENTED
+                        (MAXRANK, 0, MAXRANK), (2, 0, 1)), 
              'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
              'S': rank(lambda x, y=[' ']: split(x, y), (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)),
+             'Sf': rank(lambda x, y=None: list(''.join(y).format(*x)),
+                        (MAXRANK, 1, MAXRANK), (1, 1, 1)), # NOT DOCUMENTED
              'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
                                           if x != [0] else [])
                                          if y is None
@@ -505,7 +508,7 @@ functions = {'A': lambda x, y=None: x,
              'Z': [] 
              }
 
-# NOT DOCUMENTED
+
 synonyms = {'Oh': 'O$,MH',
             'Oe': 'O$,ME',
             }
@@ -709,6 +712,33 @@ def parse(code):
     tree = parser.parse(code+'\n')
     return visit_parse_tree(tree, InterpreterVisitor())[0]
 
+class REPL(cmd.Cmd):
+    prompt = '   '
+    intro = "Joe REPL - Version " + version + "\nType exit to quit."
+    def parseline(self, line):
+        return line
+
+    def onecmd(self, code):
+        if code == 'exit':
+            return True
+        if code.strip() != '':
+            try:
+                tree = parser.parse(code+'\n')
+                v = visit_parse_tree(tree, InterpreterVisitor())[0]
+                if v is not None and not hasattr(v, '__call__'):
+                    if tablemode:
+                        printtable(adjust(v))
+                    else:
+                        try:
+                            if len(v) == 0:
+                                print('[]')
+                            else:
+                                print(''.join(v))
+                        except:
+                            print(v)
+            except Exception as e:
+                print("Error\n", e)
+
 if __name__ == '__main__':
     tablemode = '-t' in sys.argv
     if '-nm' in sys.argv:
@@ -750,29 +780,7 @@ if __name__ == '__main__':
         else:
             print("Everything works.")
     elif '-repl' in sys.argv:
-        print("Joe REPL - Version " + version)
-        print("Type exit to exit.")
-        while True:
-            code = input('   ')
-            if code == 'exit':
-                break
-            if code.strip() != '':
-                try:
-                    tree = parser.parse(code+'\n')
-                    v = visit_parse_tree(tree, InterpreterVisitor())[0]
-                    if v is not None and not hasattr(v, '__call__'):
-                        if tablemode:
-                            printtable(v)
-                        else:
-                            try:
-                                if len(v) == 0:
-                                    print('[]')
-                                else:
-                                    print(''.join(v))
-                            except:
-                                print(v)
-                except Exception as e:
-                    print("Error\n", e)
+        REPL().cmdloop()
     else:
         if '-c' in sys.argv:
             code = sys.argv[sys.argv.index('-c')+1]
