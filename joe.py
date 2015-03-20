@@ -38,14 +38,14 @@ grammar = r"""
     function   = conjunction / '(' (assignment / combination) ')'?
                / adverb / bind / primitive / namedfunc
                / tacitb / lambda
-    primitive  = r'[\!%=\?+*<>;|\]-][,:]*'
+    primitive  = r'[\!#%=\?+*<>;|\]-][,:]*'
     namedfunc  = r'[A-W][a-z]*'
     bind       = literal function
     adverb     = ('/' / '~' / 'M' / "\\") advgroup
     advgroup   = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
     conjunction= conjlvl1 / conjlvl2 / conjlvl3
     conjlvl1   = literal ('^' / '/,') function
-    conjlvl2   = literal? conjgroup (r'[$][,:]*' literal? (conjlvl1 / conjlvl3 / conjgroup))+
+    conjlvl2   = literal? (conjlvl3 / conjgroup) (r'[$][,:]*' literal? (conjlvl1 / conjlvl3 / conjgroup))+
     conjlvl3   = literal? conjgroup (r'[@`][,:]*' (literal? conjgroup / literal conjunction))+
     conjgroup  = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
     tacit      = (function / literal)+
@@ -57,10 +57,10 @@ grammar = r"""
     combination= function+
 
     item       = braces / number / string / variable
-    braces     = '(' &call expression ')'
+    braces     = '(' &call expression ')'?
     
     literal    = list / item
-    list       = item (space? item / space? braces)+
+    list       = item (space? item)+
     number     = r'_?\d*\.\d*|_?\d+'
     string     = r'"(?:\\.|[^"\\])*?"' / r'\'(?:.)'
     variable   = r'[X-Z][a-z]*'
@@ -213,6 +213,8 @@ def orderrank(f, m, l, r):
     return (rank[m], rank[l], rank[r])
 
 def adjust(l):
+    if not isinstance(l, list):
+        return l
     r = []
     m = max(depth(x) for x in l)
     for x in l:
@@ -323,10 +325,10 @@ def windows(l, w):
 
 primitives = {'+': lambda x, y=0: y + x,
               '+,': lambda x, y=[]: y + [x], 
-              '+:': lambda x, y=False: x and y, 
+              '+:': lambda x, y=False: +(x or y), 
               '-': lambda x, y=None: x-y if y is not None else -x,
               '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
-              '*:': lambda x, y=False: x or y, 
+              '*:': lambda x, y=False: +(x and y), 
               '*,': lambda x, y=2: x ** y, 
               '%': lambda x, y=1: y/x,
               ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
@@ -338,7 +340,9 @@ primitives = {'+': lambda x, y=0: y + x,
               '>:': lambda x, y=0: x<=y, 
               '<,': lambda x, y=None: x if y is None else x if x<y else y,
               '>,': lambda x, y=None: x if y is None else x if x>y else y,
-              '=': lambda x, y=0: x==y,
+              '=': lambda x, y=0: +(x==y),
+              '=,': lambda x, y=None: [+(y==x[i:i+len(y)]) for i in range(len(x)-len(y))]+[0]*len(y),
+              '=:': lambda x, y=0: +(x==y),
               ']': lambda x, y=1: nest(x, y), 
               '-,': lambda x, y=[0]: [z for z in x if z not in y], 
               '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
@@ -348,6 +352,11 @@ primitives = {'+': lambda x, y=0: y + x,
               '!': lambda x, y=None: math.factorial(x)
                                      if y is None
                                      else combinations(x, y), 
+              '#': lambda x, y=None: ([z for i, z in zip(y, x) for _ in range(i)]
+                                      if len(y) > 1
+                                      else [z for z in x for _ in range(y)])
+                                     if y is not None
+                                     else [i for i, z in enumerate(x) if z],
               }
 primitives['+'].rank = (0, 0, 0)
 primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
@@ -370,6 +379,9 @@ primitives['>:'].rank = (0, 0, 0)
 primitives['<,'].rank = (0, 0, 0)
 primitives['>,'].rank = (0, 0, 0)
 primitives['='].rank = (0, 0, 0)
+primitives['=,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+primitives['=,'].rank = (1, 1, 1)
+primitives['=:'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives[']'].rank = (MAXRANK, 0, MAXRANK)
 primitives['-,'].rank = (MAXRANK, MAXRANK, MAXRANK)
 primitives['-,'].pad = (1, 1, 1)
@@ -378,6 +390,8 @@ primitives['-:'].pad = (1, 1, 1)
 primitives['?'].rank = (1, 0, 1)
 primitives['?'].pad = (1, 0, 1)
 primitives['!'].rank = (0, 0, 0)
+primitives['#'].rank = (MAXRANK, 1, MAXRANK)
+primitives['#'].pad = (1, 1, 1)
 
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
@@ -495,7 +509,7 @@ functions = {'A': lambda x, y=None: x,
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
-             'S': rank(lambda x, y=[' ']: split(x, y), (MAXRANK, MAXRANK, MAXRANK), (1, 1, 1)),
+             'S': rank(lambda x, y=None: list(map(str, x)) if y is None else split(x, y), (1, MAXRANK, MAXRANK), (1, 1, 1)),
              'Sf': rank(lambda x, y=None: list(''.join(y).format(*x)),
                         (MAXRANK, 1, MAXRANK), (1, 1, 1)), # NOT DOCUMENTED
              'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
@@ -657,9 +671,10 @@ class InterpreterVisitor(PTNodeVisitor):
         def f(x, y=None):
             fs = children[::-1]
             fy = fs[0]
-            vy = call(fy, y, x) if y is not None else call(fy, x)
             if len(fs) == 2:
+                vy = call(fy, x)
                 return call(fs[1], x, vy) if y is None else call(fs[1], y, vy)
+            vy = call(fy, y, x) if y is not None else call(fy, x)
             while len(fs)>1:
                 fx = fs[2]
                 ff = fs[1]
@@ -710,7 +725,7 @@ parser = ParserPEG(grammar, "program", skipws=False)
 
 def parse(code):
     tree = parser.parse(code+'\n')
-    return visit_parse_tree(tree, InterpreterVisitor())[0]
+    return visit_parse_tree(tree, InterpreterVisitor())[-1]
 
 class REPL(cmd.Cmd):
     prompt = '   '
@@ -723,8 +738,7 @@ class REPL(cmd.Cmd):
             return True
         if code.strip() != '':
             try:
-                tree = parser.parse(code+'\n')
-                v = visit_parse_tree(tree, InterpreterVisitor())[0]
+                v = parse(code)
                 if v is not None and not hasattr(v, '__call__'):
                     if tablemode:
                         printtable(adjust(v))
