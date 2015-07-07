@@ -1,0 +1,7 @@
+0.1.3:
+  Bugfixes:
+    - Fixed some serious bugs regarding naming function lists
+    - (Hopefully) fixed all problems regarding implicit specification of rank
+      with combinations and conjunctions.
+
+Versions 0.1.0 - 0.1.2 were untracked.
