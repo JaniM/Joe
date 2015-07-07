@@ -16,8 +16,13 @@ from pprint import pprint
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import PTNodeVisitor, visit_parse_tree
 
-version = "0.1.2"
+version = "0.1.3"
 MAXRANK = 100
+DEBUG = False
+
+def debugprint(type, text):
+    if DEBUG:
+        print(type + ':', text)
 
 tests = [("""{/+%N)1 2 3 4""", 2.5),
          ("""(/*-,1R)5""", 120),
@@ -46,18 +51,18 @@ grammar = r"""
     conjunction= conjlvl1 / conjlvl2 / conjlvl3
     conjlvl1   = literal ('^' / '/,') function
     conjlvl2   = literal? (conjlvl3 / conjgroup) (r'[$][,:]*' literal? (conjlvl1 / conjlvl3 / conjgroup))+
-    conjlvl3   = literal? conjgroup (r'[@`][,:]*' (literal? conjgroup / literal conjunction))+
-    conjgroup  = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
+    conjlvl3   = (!variable literal)? conjgroup (r'[@`][,:]*' (conjgroup / literal conjunction))+
+    conjgroup  = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / variable / tacitb / lambda
     tacit      = (function / literal)+
     tacitb     = '{' tacit ')'?
     lambda     = '[' statement ')'?
 
     assignment = r'[A-W][a-z]*'? space? ':' space? combination
-               / r'[X-Z][a-z]*'? space? ':' space? call
+               / r'[X-Z][a-z]*'? space? ':' space? expression
     combination= function+
 
     item       = braces / number / string / variable
-    braces     = '(' &call expression ')'?
+    braces     = '(' &call expression ')'
     
     literal    = list / item
     list       = item (space? item)+
@@ -213,7 +218,7 @@ def orderrank(f, m, l, r):
     return (rank[m], rank[l], rank[r])
 
 def adjust(l):
-    if not isinstance(l, list):
+    if not isinstance(l, list) or len(l) == 0:
         return l
     r = []
     m = max(depth(x) for x in l)
@@ -265,7 +270,8 @@ def unique(l, idfun=None):
     return result
 
 def int2base(x, base):
-    if x == 0: return [0]
+    basel = len(base)
+    if x == 0: return [0] * basel
     digits = []
     while x:
         digits.append(x % base[-1])
@@ -273,7 +279,7 @@ def int2base(x, base):
         if len(base) > 1:
             base = base[:-1]
     digits.reverse()
-    return digits
+    return [0] * (basel - len(digits)) + digits
 
 def base2int(l, base):
     l = l[::-1]
@@ -407,11 +413,16 @@ adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                 (MAXRANK, 0, MAXRANK), (1, 0, 1)), 
            }
 
-def agenda(f, a, x, y):
-    v = a[call(f, x) if y is None else call(f, y, x)]
-    if y is None:
-        return call(v, x)
-    return call(v, y, x)
+def agendaf(f, a):
+    f = resolve(f)
+    def F(x, y=None):
+        v = a[call(f, x) if y is None else call(f, y, x)]
+        if y is None:
+            return call(v, x)
+        return call(v, y, x)
+    F.rank = rankof(f)
+    debugprint("Agenda rank", F.rank)
+    return F
 
 conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            call(f, x) \
@@ -425,8 +436,8 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                         (MAXRANK, MAXRANK, -1), (1, 0, 1)),
                 '@': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
                                        (MAXRANK, MAXRANK, MAXRANK))
-                                  if not isinstance(g, list)
-                                  else rank(lambda x, y=None: agenda(f, g, x, y), rankof(f)),
+                                  if not isinstance(resolve(g), list)
+                                  else agendaf(f, g),
                 '@,': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
                                         rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
@@ -509,7 +520,7 @@ functions = {'A': lambda x, y=None: x,
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
-             'S': rank(lambda x, y=None: list(map(str, x)) if y is None else split(x, y), (1, MAXRANK, MAXRANK), (1, 1, 1)),
+             'S': rank(lambda x, y=None: list(str(x)) if y is None else split(x, y), (MAXRANK, MAXRANK, MAXRANK), (0, 1, 1)),
              'Sf': rank(lambda x, y=None: list(''.join(y).format(*x)),
                         (MAXRANK, 1, MAXRANK), (1, 1, 1)), # NOT DOCUMENTED
              'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
@@ -529,6 +540,7 @@ synonyms = {'Oh': 'O$,MH',
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
     x, y, f = resolve(x), resolve(y), resolve(f)
+    debugprint("Call:", (f, x, y))
 #    print(f) # In case of "str is not callable"
     rank, lrank, rrank = rankof(f)
     if y is None:
@@ -566,7 +578,7 @@ def withAdverb(a, f):
     return adverbs[a](f)
 
 def withConjunction(c, f, x):
-    return conjunctions[c](f, x)
+    return conjunctions[c](f, resolve(x))
 
 class InterpreterVisitor(PTNodeVisitor):
     def visit_program(self, node, children):
@@ -592,14 +604,17 @@ class InterpreterVisitor(PTNodeVisitor):
 
     def visit_conjunction(self, node, children):
         if len(children) == 1:
+            debugprint("Conj1:", children[0])
             return children[0]
-        if sum(1 for c in children if isinstance(c, tuple) or hasattr(c, '__call__'))>1:
+        if sum(1 for c in children if hasattr(resolve(c), '__call__'))>1:
             conjs = [x.value for x in node if x.value in conjunctions]
             children = [c for c in children if c not in conjunctions]
+            debugprint("Conj:", (conjs, children))
             g = children[0]
             if not hasattr(resolve(g), '__call__'):
                 g = bind(children[1], g)
                 children = children[1:]
+            ff = g
             while len(children)>1:
                 f = children[1]
                 if not hasattr(resolve(f), '__call__'):
@@ -608,7 +623,10 @@ class InterpreterVisitor(PTNodeVisitor):
                 g = conjunctions[conjs[0]](f, g)
                 children = children[1:]
                 conjs = conjs[1:]
+            #if hasattr(g, '__call__'):
+                #g.rank = rankof(ff)
             return g
+        debugprint("Conj2:", children)
         return withConjunction(children[1], children[2], children[0])
 
     visit_conjlvl1 = visit_conjlvl2 = visit_conjlvl3 = visit_conjunction
@@ -656,6 +674,7 @@ class InterpreterVisitor(PTNodeVisitor):
         return ('variable', node.value)
 
     def visit_assignment(self, node, children):
+        debugprint("Assign:", (node, children))
         functions[node[0].value if node[0].value != ':' else 'F'] = resolve(children[-1])
         return children[-1]
 
@@ -665,6 +684,7 @@ class InterpreterVisitor(PTNodeVisitor):
             for f in reversed(children):
                 x = call(f, x) if y is None else call(f, y, x)
             return x
+        f.rank = rankof(children[-1])
         return f
 
     def visit_tacit(self, node, children):
@@ -708,7 +728,7 @@ def printtable(v, w=0):
             w = [1]*len(v)
         for i, x in enumerate(v):
             s = isinstance(x, str)
-            print((' '*(ls and not s))+(('{:'+str(w[i])+'}' if w else '{0}').format(x)), end=' '*(i<vl-1 and not s))
+            print((' '*(ls and not s))+(('{:'+str(w[i])+'}' if w else '{0}').format(str(x))), end=' '*(i<vl-1 and not s))
             ls = s
         print()
     elif dv > 1:
@@ -734,24 +754,24 @@ class REPL(cmd.Cmd):
         return line
 
     def onecmd(self, code):
+        global DEBUG
         if code == 'exit':
             return True
-        if code.strip() != '':
+        if len(code) > 4 and code[:5] == 'debug':
+            if len(code) > 6 and code[6:8] == 'on':
+                DEBUG = True
+                print("Debug output on.")
+            else:
+                DEBUG = False
+                print("debug output off.")
+        elif code.strip() != '':
             try:
                 v = parse(code)
                 if v is not None and not hasattr(v, '__call__'):
-                    if tablemode:
-                        printtable(adjust(v))
-                    else:
-                        try:
-                            if len(v) == 0:
-                                print('[]')
-                            else:
-                                print(''.join(v))
-                        except:
-                            print(v)
+                    printtable(adjust(v))
             except Exception as e:
                 print("Error\n", e)
+                raise
 
 if __name__ == '__main__':
     tablemode = '-t' in sys.argv
@@ -764,6 +784,8 @@ if __name__ == '__main__':
             memoize = lambda f: f
         if '-nms' in sys.argv:
             memoizef = lambda f: f
+    if '-debug' in sys.argv:
+        DEBUG = True
     if '-h' in sys.argv or '--help' in sys.argv or len(sys.argv) == 1:
         print("Joe Interpreter - Version " + version)
         print("Uses python 3 and arpeggio module. Install with pip install arpeggio.")
@@ -775,13 +797,12 @@ if __name__ == '__main__':
         print("    -nmc   prevents complex memoization")
         print("    -nms   prevents simple memoization")
         print("    -repl  starts REPL")
-        print("    -t     prints lists as tables")
+        print("    -debug Enables debug output")
         print("    -test  run after making changes to the interpreter to check damages")
     elif '-test' in sys.argv:
         fails = []
         for c, r in tests:
-            tree = parser.parse(c+'\n')
-            v = visit_parse_tree(tree, InterpreterVisitor())[0]
+            v = parse(c)
             if v != r:
                 fails += [(c, r, v)]
         if fails:
@@ -803,9 +824,6 @@ if __name__ == '__main__':
             pprint(visit_parse_tree(tree, SyntaxVisitor()))
         else:
             v = visit_parse_tree(tree, InterpreterVisitor())
-            if tablemode:
-                printtable(v[-1])
-            else:
-                print(v[-1])
+            printtable(v[-1])
 
 
