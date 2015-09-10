@@ -1,0 +1,87 @@
+<h1>Quick tutorial</h1>
+
+<h3>Absolutely not finished yet.</h3>
+
+<p>Read the syntax reference and jump to <a href="reference.md">function reference</a> or <a href="../examples.md">examples</a></p>
+
+<h2>Index</h2>
+
+<ul>
+<li><a href="#syntax-reference">Syntax reference</a></li>
+<li><a href="#more-about-functions">More about functions</a></li>
+</ul>
+
+<h2>Syntax reference</h2>
+
+<ul>
+<li>Literals
+<ul>
+<li>Number: <code>10</code> or <code>5.3</code> or <code>.7</code></li>
+<li>Character: <code>'a</code></li>
+<li>String: <code>"a \"feather\""</code></li>
+<li>Lists: <code>1 2 3</code> - can contain any of the preceding literals and any expressions surrounded by braces.</li>
+</ul></li>
+<li>Function calls
+<ul>
+<li>Functions are referenced by <code>[A-W][a-z]*</code></li>
+<li>Functions always take two parameters, in the syntax <code>xFy</code>, where x is a literal immediately preceding the function and y is everything following it. The left and right argument are always referenced as X and Y, respectively.</li>
+<li>Modifiers take functions as their arguments and return new functions. They're referenced as A for adverb and C for conjunction.</li>
+<li><code>AF</code></li>
+<li><code>vCF</code>, <code>FCF</code> (v is a literal argument to the conjunction)</li>
+</ul></li>
+<li>Assignment
+<ul>
+<li><code>name:value</code></li>
+<li>If the name is <code>[X-Z][a-z]*</code>, the value is treated as an atom.</li>
+<li>If the name is <code>[A-W][a-z]*</code>, the value is treated as a tacit expression, without curly braces.</li>
+</ul></li>
+<li><p>Function definitions</p>
+
+<ul>
+<li>Functions are defined in so called tacit form.</li>
+<li><code>x{FGH}y</code> is run as <code>(xFy) G (xHy)</code></li>
+<li>The tacit expression can contain more than three functions, in which case the functions are read right-to-left and paired to tacit-expressions.</li>
+<li>Example: <code>{ABCDE}</code> -> <code>{AB{CDE}}</code></li>
+<li>If a literal immediately precedes a function, it is bound as the left argument of the function.</li>
+<li><p>Example:</p>
+
+<p><code>
+       F:1+
+       F3
+   4
+</code></p></li>
+</ul></li>
+</ul>
+
+<h2>More about functions</h2>
+
+<h4>Monadic or dyadic?</h4>
+
+<p>Most functions can be called with one or two arguments. Never zero and never more than two. And no, it really isn't restricting. Function used with one argument is called the monadic form of the function and, like you could guess, function used with two arguments is called the dyadic form of the function. The difference between the two is usually quite obvious and often can be used interchangeably, resulting in more flexible derived functions. Here's a couple of examples:</p>
+
+<ul>
+<li><p>Table-function</p>
+
+<p><code>
+   T5 3
+ 0  1  2  3  4 
+ 5  6  7  8  9 
+10 11 12 13 14 
+   5 3T0 1
+0 1 0 1 0 
+1 0 1 0 1 
+0 1 0 1 0
+</code></p></li>
+</ul>
+
+<h4>Modifiers</h4>
+
+<p>Functions would be pretty boring by themselves. That's why we have modifiers. They appear before a function and can be chained for hilarious effects. Let's glance at a few of them.</p>
+
+<ul>
+<li><code>/F</code> aka. table
+Table has two behaviours, depending on if it's used monadically or dyadically.
+<h4>Rank</h4></li>
+</ul>
+
+<p>Functions behave a bit differently than usually. They operate on a specific rank. Rank of a list is it's depth. For example, <code>[[1, 2], [3, 4]]</code> has rank of 2. Rank of a function consists of three numbers though. </p>

@@ -12,11 +12,10 @@ import random
 import math
 import marshal
 import cmd
+import re
 from pprint import pprint
-from arpeggio.cleanpeg import ParserPEG
-from arpeggio import PTNodeVisitor, visit_parse_tree
 
-version = "0.1.3"
+version = "0.2.0"
 MAXRANK = 100
 DEBUG = False
 
@@ -31,55 +30,40 @@ tests = [("""{/+%N)1 2 3 4""", 2.5),
          ("""M-,~/!R5""", [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]),
          ]
 
-grammar = r"""
-    program    = (NL? statement)*
-    statement  = (space? expression)+
-    expression = call / function
-    call       = assignment
-               / literal ','? function call
-               / function call
-               / literal
-
-    function   = conjunction / '(' (assignment / combination) ')'?
-               / adverb / bind / primitive / namedfunc
-               / tacitb / lambda
-    primitive  = r'[\!#%=\?+*<>;|\]-][,:]*'
-    namedfunc  = r'[A-W][a-z]*'
-    bind       = literal function
-    adverb     = ('/' / '~' / 'M' / "\\") advgroup
-    advgroup   = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / tacitb / lambda
-    conjunction= conjlvl1 / conjlvl2 / conjlvl3
-    conjlvl1   = literal ('^' / '/,') function
-    conjlvl2   = literal? (conjlvl3 / conjgroup) (r'[$][,:]*' literal? (conjlvl1 / conjlvl3 / conjgroup))+
-    conjlvl3   = (!variable literal)? conjgroup (r'[@`][,:]*' (conjgroup / literal conjunction))+
-    conjgroup  = '(' (assignment / combination) ')'? / adverb / bind / primitive / namedfunc / variable / tacitb / lambda
-    tacit      = (function / literal)+
-    tacitb     = '{' tacit ')'?
-    lambda     = '[' statement ')'?
-
-    assignment = r'[A-W][a-z]*'? space? ':' space? combination
-               / r'[X-Z][a-z]*'? space? ':' space? expression
-    combination= function+
-
-    item       = braces / number / string / variable
-    braces     = '(' &call expression ')'
-    
-    literal    = list / item
-    list       = item (space? item)+
-    number     = r'_?\d*\.\d*|_?\d+'
-    string     = r'"(?:\\.|[^"\\])*?"' / r'\'(?:.)'
-    variable   = r'[X-Z][a-z]*'
-
-    space      = (' ' / '\t')+
-    NL         = ('\r' / '\n')+
-"""
-
 code = '~/*1R10'
 
 whitespace = ' \t'
 newline = '\n'
 node = lambda f: lambda self, node, children: f(node.value)
 ignore = lambda words, l: [x for x in l if not any(x == w for w in words)]
+
+def unescape(text):
+    regex = re.compile(b'\\\\(\\\\|[0-7]{1,3}|x.[0-9a-f]?|[\'"abfnrt]|.|$)')
+    def replace(m):
+        b = m.group(1)
+        if len(b) == 0:
+            raise ValueError("Invalid character escape: '\\'.")
+        i = b[0]
+        if i == 120:
+            v = int(b[1:], 16)
+        elif 48 <= i <= 55:
+            v = int(b, 8)
+        elif i == 34: return b'"'
+        elif i == 39: return b"'"
+        elif i == 92: return b'\\'
+        elif i == 97: return b'\a'
+        elif i == 98: return b'\b'
+        elif i == 102: return b'\f'
+        elif i == 110: return b'\n'
+        elif i == 114: return b'\r'
+        elif i == 116: return b'\t'
+        else:
+            s = b.decode('ascii')
+            raise UnicodeDecodeError(
+                'stringescape', text, m.start(), m.end(), "Invalid escape: %r" % s
+            )
+        return bytes((v, ))
+    return regex.sub(replace, text)
 
 def memoize(f): 
     """Memoize any function."""
@@ -106,82 +90,14 @@ def memoizef(f):
 
 usermemoize = memoizef
 
-# For printing the AST.
-class SyntaxVisitor(PTNodeVisitor):
-    def visit_program(self, node, children):
-        return ignore(newline, children)
-
-    def visit_statement(self, node, children):
-        return children
-
-    def visit_expression(self, node, children):
-        return children[0]
-
-    def visit_call(self, node, children):
-        if len(children) == 4:
-            return ('call', children[2], children[0], children[3])
-        elif len(children) == 3:
-            return ('call', children[1], children[0], children[2])
-        elif len(children) == 2:
-            return ('call', children[0], children[1])
-        return children[0]
-
-    def visit_adverb(self, node, children):
-        return ('adverb', node[0].value, children[1])
-
-    def visit_conjunction(self, node, children):
-        return ('conjunction', [x.value for x in node[1::2]], children)
-
-    def visit_function(self, node, children):
-        return children[0] if len(children) == 1 else children[1]
-
-    def visit_primitive(self, node, children):
-        return node.value
-
-    def visit_namedfunc(self, node, children):
-        return ('function', node.value)
-
-    def visit_item(self, node, children):
-        return children[0]
-
-    def visit_braces(self, node, children):
-        return children[0]
-
-    def visit_literal(self, node, children):
-        return children[0]
-
-    def visit_list(self, node, children):
-        return ignore(whitespace, children)
-
-    def visit_number(self, node, children):
-        v = node.value.replace('_', '-')
-        return float(v) if '.' in v else int(v)
-
-    def visit_string(self, node, children):
-        return node.value.decode('string-escape')
-
-    def visit_space(self, node, children):
-        return node.value
-
-    def visit_NL(self, node, children):
-        return node.value
-
-    def visit_variable(self, node, children):
-        return ('variable', node.value)
-
-    def visit_assignment(self, node, children):
-        return ('assign', node[0].value, children[-1])
-
-    def visit_tacit(self, node, children):
-        return ('tacit', children)
-
-    def visit_lambda(self, node, children):
-        return ('lambda', children[0])
-
 depth = lambda x: isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
 foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs[:-1] if s is None else xs), xs[-1] if s is None else s) if len(xs) else [])
 flip  = lambda f: rank(lambda x, y=None: f(y, x), (f.rank[0], f.rank[2], f.rank[1]))
-bind  = lambda f, x: rank(lambda y, _=0: call(f, x, y), rankof(f))
+bind  = lambda f, x: rank(lambda y, _=None: call(f, x, y), MAXRANK)
+combine = lambda f, g: rank(lambda x, y=None: (call(f, call(g, x))
+                                               if y is None
+                                               else call(f, y, call(g, y, x))),
+                            MAXRANK)
 def rank(f, r, p=(0, 0, 0)):
     if not isinstance(r, (tuple, list)):
         r = (r, r, r)
@@ -208,10 +124,17 @@ def padrank(f):
         return (0, 0, 0)
 def resolve(x):
     if isinstance(x, tuple):
-        if x[0] == 'variable':
-            x = functions[x[1]]
+        if x[0] == 'function':
+            if isinstance(x[1], str):
+                x = functions[x[1]]
+            else:
+                x = x[1]
+        elif x[0] in ('value', 'list'):
+            x = x[1]
+        elif x[0] == 'variable':
+            x = variables[x[1]]
         else:
-            raise 'Unexpected tuple ' + x + ' - blame the developer'
+            raise Exception('Unexpected tuple ' + str(x) + ' - blame the developer')
     return x
 def orderrank(f, m, l, r):
     rank = rankof(f)
@@ -329,76 +252,6 @@ def windows(l, w):
 
 # Please remember: x is the right argument and y is the left one.
 
-primitives = {'+': lambda x, y=0: y + x,
-              '+,': lambda x, y=[]: y + [x], 
-              '+:': lambda x, y=False: +(x or y), 
-              '-': lambda x, y=None: x-y if y is not None else -x,
-              '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
-              '*:': lambda x, y=False: +(x and y), 
-              '*,': lambda x, y=2: x ** y, 
-              '%': lambda x, y=1: y/x,
-              ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
-              ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
-              '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x,
-              '<': lambda x, y=0: x>y,
-              '>': lambda x, y=0: x<y,
-              '<:': lambda x, y=0: x>=y, 
-              '>:': lambda x, y=0: x<=y, 
-              '<,': lambda x, y=None: x if y is None else x if x<y else y,
-              '>,': lambda x, y=None: x if y is None else x if x>y else y,
-              '=': lambda x, y=0: +(x==y),
-              '=,': lambda x, y=None: [+(y==x[i:i+len(y)]) for i in range(len(x)-len(y))]+[0]*len(y),
-              '=:': lambda x, y=0: +(x==y),
-              ']': lambda x, y=1: nest(x, y), 
-              '-,': lambda x, y=[0]: [z for z in x if z not in y], 
-              '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
-              '?': lambda x, y=None: table([random.random() for _ in range(foldr(lambda x, y: x*y, x))], x)
-                                     if y is None
-                                     else table([random.uniform(0, y) for _ in range(foldr(lambda x, y: x*y, x))], x), 
-              '!': lambda x, y=None: math.factorial(x)
-                                     if y is None
-                                     else combinations(x, y), 
-              '#': lambda x, y=None: ([z for i, z in zip(y, x) for _ in range(i)]
-                                      if len(y) > 1
-                                      else [z for z in x for _ in range(y)])
-                                     if y is not None
-                                     else [i for i, z in enumerate(x) if z],
-              }
-primitives['+'].rank = (0, 0, 0)
-primitives['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives['+:'].rank = (0, 0, 0)
-primitives['+,'].pad = (0, 1, 0)
-primitives['-'].rank = (0, 0, 0)
-primitives['*'].rank = (0, 0, 0)
-primitives['*,'].rank = (0, 0, 0)
-primitives['*:'].rank = (0, 0, 0)
-primitives['%'].rank = (0, 0, 0)
-primitives[';'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives[';'].pad = (2, 1, 1)
-primitives[';,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives[';,'].pad = (1, 0, 0)
-primitives['|'].rank = (0, 0, 0)
-primitives['<'].rank = (0, 0, 0)
-primitives['>'].rank = (0, 0, 0)
-primitives['<:'].rank = (0, 0, 0)
-primitives['>:'].rank = (0, 0, 0)
-primitives['<,'].rank = (0, 0, 0)
-primitives['>,'].rank = (0, 0, 0)
-primitives['='].rank = (0, 0, 0)
-primitives['=,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives['=,'].rank = (1, 1, 1)
-primitives['=:'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives[']'].rank = (MAXRANK, 0, MAXRANK)
-primitives['-,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives['-,'].pad = (1, 1, 1)
-primitives['-:'].rank = (MAXRANK, MAXRANK, MAXRANK)
-primitives['-:'].pad = (1, 1, 1)
-primitives['?'].rank = (1, 0, 1)
-primitives['?'].pad = (1, 0, 1)
-primitives['!'].rank = (0, 0, 0)
-primitives['#'].rank = (MAXRANK, 1, MAXRANK)
-primitives['#'].pad = (1, 1, 1)
-
 adverbs = {'/': lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
                                    if y is None \
@@ -429,7 +282,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            if y is None \
                                            else call(f, y, x),
                                        n),
-                '/,': lambda f, s: rank(lambda x, y=None:
+                '/:': lambda f, s: rank(lambda x, y=None: # FIXDOC /, -> new name
                                             foldr(lambda x, y: call(f, y, x), x, s)
                                             if y is None
                                             else call(f, y, x),
@@ -474,7 +327,41 @@ def flatten(l):
         else:
             yield el
 
-functions = {'A': lambda x, y=None: x,
+functions = {'+': lambda x, y=0: y + x,
+             '+,': lambda x, y=[]: y + [x], 
+             '+:': lambda x, y=False: +(x or y), 
+             '-': lambda x, y=None: x-y if y is not None else -x,
+             '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
+             '*:': lambda x, y=False: +(x and y), 
+             '*,': lambda x, y=2: x ** y, 
+             '%': lambda x, y=1: y/x,
+             ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
+             ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
+             '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x,
+             '<': lambda x, y=0: x>y,
+             '>': lambda x, y=0: x<y,
+             '<:': lambda x, y=0: x>=y, 
+             '>:': lambda x, y=0: x<=y, 
+             '<,': lambda x, y=None: x if y is None else x if x<y else y,
+             '>,': lambda x, y=None: x if y is None else x if x>y else y,
+             '=': lambda x, y=0: +(x==y),
+             '=,': lambda x, y=None: [+(y==x[i:i+len(y)]) for i in range(len(x)-len(y))]+[0]*len(y),
+             '=:': lambda x, y=0: +(x==y),
+             ']': lambda x, y=1: nest(x, y), 
+             '-,': lambda x, y=[0]: [z for z in x if z not in y], 
+             '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
+             '?': lambda x, y=None: table([random.random() for _ in range(foldr(lambda x, y: x*y, x))], x)
+                                    if y is None
+                                    else table([random.uniform(0, y) for _ in range(foldr(lambda x, y: x*y, x))], x), 
+             '!': lambda x, y=None: math.factorial(x)
+                                    if y is None
+                                    else combinations(x, y), 
+             '#': lambda x, y=None: ([z for i, z in zip(y, x) for _ in range(i)]
+                                     if len(y) > 1
+                                     else [z for z in x for _ in range(y)])
+                                    if y is not None
+                                    else [i for i, z in enumerate(x) if z],
+             'A': lambda x, y=None: x,
              'B': lambda x, y=None: y if y is not None else x,
              'Ba': rank(lambda x, y=[2]: int2base(x, y),
                         (0, 1, 0), (0, 1, 0)), 
@@ -516,7 +403,7 @@ functions = {'A': lambda x, y=None: x,
                                           if y is None
                                           else x+[0]*(y-len(x)),
                         (MAXRANK, 0, MAXRANK), (2, 0, 1)), 
-             'R': rank(lambda x, y=None: list(range(y, x+(x>y or -1), x>y or -1)) \
+             'R': rank(lambda x, y=None: list(range(int(y), int(x)+(x>y or -1), x>y or -1)) \
                                          if y is not None \
                                          else list(range(0, x, x>0 or -1)),
                        (0, 0, 0)),
@@ -529,13 +416,48 @@ functions = {'A': lambda x, y=None: x,
                                          else table(x, y),
                        (1, 1, 1), (1, 1, 1)),
              'V': rank(lambda x, y=None: x[::-1],
-                       (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1)), 
-             'Z': [] 
+                       (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1))
              }
-
+functions['+'].rank = (0, 0, 0)
+functions['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['+:'].rank = (0, 0, 0)
+functions['+,'].pad = (0, 1, 0)
+functions['-'].rank = (0, 0, 0)
+functions['*'].rank = (0, 0, 0)
+functions['*,'].rank = (0, 0, 0)
+functions['*:'].rank = (0, 0, 0)
+functions['%'].rank = (0, 0, 0)
+functions[';'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions[';'].pad = (2, 1, 1)
+functions[';,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions[';,'].pad = (1, 0, 0)
+functions['|'].rank = (0, 0, 0)
+functions['<'].rank = (0, 0, 0)
+functions['>'].rank = (0, 0, 0)
+functions['<:'].rank = (0, 0, 0)
+functions['>:'].rank = (0, 0, 0)
+functions['<,'].rank = (0, 0, 0)
+functions['>,'].rank = (0, 0, 0)
+functions['='].rank = (0, 0, 0)
+functions['=,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['=,'].rank = (1, 1, 1)
+functions['=:'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions[']'].rank = (MAXRANK, 0, MAXRANK)
+functions['-,'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['-,'].pad = (1, 1, 1)
+functions['-:'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['-:'].pad = (1, 1, 1)
+functions['?'].rank = (1, 0, 1)
+functions['?'].pad = (1, 0, 1)
+functions['!'].rank = (0, 0, 0)
+functions['#'].rank = (MAXRANK, 1, MAXRANK)
+functions['#'].pad = (1, 1, 1)
 
 synonyms = {'Oh': 'O$,MH',
             'Oe': 'O$,ME',
+            }
+
+variables = {'Z': []
             }
 
 def call(f, x, y=None, xdepth=0, ydepth=0):
@@ -578,143 +500,277 @@ def withAdverb(a, f):
     return adverbs[a](f)
 
 def withConjunction(c, f, x):
-    return conjunctions[c](f, resolve(x))
+    return conjunctions[c](f, x)
 
-class InterpreterVisitor(PTNodeVisitor):
-    def visit_program(self, node, children):
-        return ignore(newline, children)
+nameEndAlphabet = 'abcdefghijklmnopqrstuvwyxz'
+nameStartAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWYXZ^!#%=?+*<>;|]-`/$@`~m\\'
+startAlphabet = nameStartAlphabet
+typeSynonyms = {'value': ('list', 'variable'),
+                'name': ('function', 'variable')}
 
-    def visit_statement(self, node, children):
-        return children[-1]
+class Interpreter:
+    def __init__(self):
+        self.stack = []
+        self.overhead = (None, None)
+        self.code = ""
 
-    def visit_expression(self, node, children):
-        return children[0]
+    def peekName(self):
+        c = self.code[-1]
+        if c in startAlphabet:
+            return c
+        if c in nameEndAlphabet:
+            count = 1
+            while self.code[-count-1] not in startAlphabet:
+                count += 1
+                c += self.code[-count]
+            c += self.code[-count-1]
+            return c[::-1]
+        return False
 
-    def visit_call(self, node, children):
-        if len(children) == 4:
-            return call(children[2], children[0], children[3])
-        elif len(children) == 3:
-            return call(children[1], children[0], children[2])
-        elif len(children) == 2:
-            return call(children[0], children[1])
-        return children[0]
+    def readName(self):
+        n = self.peekName()
+        if n is not False:
+            self.code = self.code[:-len(n)]
+        return n
 
-    def visit_adverb(self, node, children):
-        return withAdverb(node[0].value, children[1])
+    def peekLiteral(self):
+        c = self.code[-1]
+        if len(self.code) > 1 and self.code[-2] == "'":
+            return ('single', c)
+        elif c == '"':
+            count = 2
+            s = ""
+            while True:
+                c = self.code[-count]
+                if c == '"':
+                    i = 1
+                    t = False
+                    while len(self.code) > count + i and self.code[-count-i] == '\\':
+                        t = not t
+                        i += 1
+                    if not t:
+                        break
+                s += c
+                count += 1
+            return ('string', unescape(s[::-1].encode()).decode())
+        elif c in '1234567890.':
+            count = 2
+            s = c
+            while len(self.code) >= count and self.code[-count] in '1234567890.':
+                if self.code[-count] == '.' and '.' in s:
+                    break
+                s += self.code[-count]
+                count += 1
+            s = s[::-1]
+            if len(self.code) >= count and self.code[-count] == '_':
+                s = '-' + s
+            return ('number', float(s) if '.' in s else int(s), len(s))
+        return False
 
-    def visit_conjunction(self, node, children):
-        if len(children) == 1:
-            debugprint("Conj1:", children[0])
-            return children[0]
-        if sum(1 for c in children if hasattr(resolve(c), '__call__'))>1:
-            conjs = [x.value for x in node if x.value in conjunctions]
-            children = [c for c in children if c not in conjunctions]
-            debugprint("Conj:", (conjs, children))
-            g = children[0]
-            if not hasattr(resolve(g), '__call__'):
-                g = bind(children[1], g)
-                children = children[1:]
-            ff = g
-            while len(children)>1:
-                f = children[1]
-                if not hasattr(resolve(f), '__call__'):
-                    f = bind(children[2], f)
-                    children = children[1:]
-                g = conjunctions[conjs[0]](f, g)
-                children = children[1:]
-                conjs = conjs[1:]
-            #if hasattr(g, '__call__'):
-                #g.rank = rankof(ff)
-            return g
-        debugprint("Conj2:", children)
-        return withConjunction(children[1], children[2], children[0])
+    def peek(self):
+        if len(self.code):
+            c = self.peekLiteral()
+            if c:
+                return c
+            c = self.code[-1]
+            if c in ' ({[)':
+                return c
+            elif c == ':':
+                return ('assign', c)
+            c = self.peekName()
+            if c:
+                if c in functions:
+                    return ('function', c)
+                elif c in conjunctions:
+                    return ('conjunction', c)
+                elif c in adverbs:
+                    return ('adverb', c)
+                elif c in variables:
+                    return ('variable', c)
+                return ('name', c)
+        return False
 
-    visit_conjlvl1 = visit_conjlvl2 = visit_conjlvl3 = visit_conjunction
-
-    def visit_function(self, node, children):
-        return children[0]
-
-    def visit_primitive(self, node, children):
-        return primitives[node.value]
-
-    def visit_namedfunc(self, node, children):
-        return ('variable', node.value) if node.value not in synonyms else parse(synonyms[node.value])
-
-    def visit_item(self, node, children):
-        return children[0]
-
-    def visit_braces(self, node, children):
-        x = children[0]
-        try:
-            return [c for c in x if c != []]
-        except:
-            return x
-
-    def visit_literal(self, node, children):
-        return children[0]
-
-    def visit_list(self, node, children):
-        return ignore([None], children)
-
-    def visit_number(self, node, children):
-        v = node.value.replace('_', '-')
-        return float(v) if '.' in v else int(v)
-
-    def visit_string(self, node, children):
-        v = node.value.encode().decode('unicode_escape')
-        return list(v[1:-1]) if v[0] == '"' else v[1:]
-
-    def visit_space(self, node, children):
-        return None
-
-    def visit_NL(self, node, children):
-        return None
-
-    def visit_variable(self, node, children):
-        return ('variable', node.value)
-
-    def visit_assignment(self, node, children):
-        debugprint("Assign:", (node, children))
-        functions[node[0].value if node[0].value != ':' else 'F'] = resolve(children[-1])
-        return children[-1]
-
-    def visit_combination(self, node, children):
-        @usermemoize
-        def f(x, y=None):
-            for f in reversed(children):
-                x = call(f, x) if y is None else call(f, y, x)
-            return x
-        f.rank = rankof(children[-1])
-        return f
-
-    def visit_tacit(self, node, children):
-        def f(x, y=None):
-            fs = children[::-1]
-            fy = fs[0]
-            if len(fs) == 2:
-                vy = call(fy, x)
-                return call(fs[1], x, vy) if y is None else call(fs[1], y, vy)
-            vy = call(fy, y, x) if y is not None else call(fy, x)
-            while len(fs)>1:
-                fx = fs[2]
-                ff = fs[1]
-                if hasattr(resolve(fx), '__call__'):
-                    vx = call(fx, y, x) if y is not None else call(fx, x)
+    def read(self):
+        x = self.peek()
+        if x is not False:
+            if isinstance(x, tuple):
+                if x[0] == 'single':
+                    self.code = self.code[:-2]
+                elif x[0] == 'string':
+                    x = ('string', list(x[1]))
+                    self.code = self.code[:-len(x[1])-2]
+                elif x[0] == 'number':
+                    self.code = self.code[:-x[2]]
                 else:
-                    vx = fx
-                vy = call(ff, vx, vy)
-                fs = fs[2:]
-            return vy
-        f.rank = (MAXRANK, MAXRANK, MAXRANK)
-        if len(children) > 1:
-            return f
-        return children[0]
+                    self.code = self.code[:-len(x[1])]
+            else:
+                self.code = self.code[:-len(x)]
+        return x
 
-    def visit_lambda(self, node, children):
-        return ('lambda', children[0])
+    def peekNth(self, n):
+        ocode = self.code
+        for _ in range(n+1):
+            r = self.read()
+        self.code = ocode
+        return r
 
-    def visit_bind(self, node, children):
-        return bind(children[1], children[0])
+    def parseLine(self, code):
+        self.code = code
+        self.stack = []
+        while len(self.code):
+            self.parseExpression()
+        return self.stack[-1]
+
+    def parseExpression(self, until=()):
+        while self.readStep(until):
+            p = self.peek()
+            if len(self.stack):
+                self.overhead = self.stack.pop()
+            while True:
+                debugprint('Stack', self.stack + ([self.overhead] if self.overhead[0] else []))
+                if self.pattern(['name', 'assign', 'function']):
+                    n = self.stack.pop()[1]
+                    self.stack.pop()
+                    f = self.stack[-1]
+                    functions[n] = resolve(f)
+                elif self.pattern(['value', 'conjunction', 'assign', 'function']):
+                    v = resolve(self.stack.pop())
+                    c = self.stack.pop()[-1]
+                    a = self.stack.pop()
+                    f = withConjunction(c, resolve(self.stack.pop()), v)
+                    self.stack.append(('function', f))
+                    self.stack.append(a)
+                elif self.pattern(['adverb', 'assign', 'function']):
+                    c = self.stack.pop()[-1]
+                    a = self.stack.pop()
+                    f = withAdverb(c, resolve(self.stack.pop()))
+                    self.stack.append(('function', f))
+                    self.stack.append(a)
+                elif self.pattern(['name', 'assign', 'value']):
+                    n = self.stack.pop()[1]
+                    self.stack.pop()
+                    v = self.stack[-1]
+                    variables[n] = resolve(v)
+                elif self.pattern(['adverb', 'function']):
+                    a = self.stack.pop()[1]
+                    f = self.stack.pop()
+                    self.stack.append(('function', withAdverb(a, f)))
+                elif self.pattern(['function', 'conjunction', 'function'], ('value', 'adverb')):
+                    f1 = resolve(self.stack.pop())
+                    c = self.stack.pop()[1]
+                    f2 = resolve(self.stack.pop())
+                    self.stack.append(('function', withConjunction(c, f2, f1)))
+                elif self.pattern(['value', 'conjunction', 'function'], ('value',)):
+                    v = resolve(self.stack.pop())
+                    c = self.stack.pop()[1]
+                    f = resolve(self.stack.pop())
+                    self.stack.append(('function', withConjunction(c, f, v)))
+                elif self.pattern(['value', 'list']):
+                    v = resolve(self.stack.pop())
+                    l = self.stack.pop()[1]
+                    self.stack.append(('list', [v] + l))
+                elif self.pattern(['value', 'value']):
+                    v1 = resolve(self.stack.pop())
+                    v2 = resolve(self.stack.pop())
+                    self.stack.append(('list', [v1, v2]))
+                elif self.pattern(['value', 'function', 'value'], ('value',)):
+                    l = resolve(self.stack.pop())
+                    f = self.stack.pop()
+                    r = resolve(self.stack.pop())
+                    self.stack.append(('value', call(f, l, r)))
+                elif self.pattern(['function', 'value'], ('value', 'adverb')):
+                    f = self.stack.pop()
+                    r = resolve(self.stack.pop())
+                    self.stack.append(('value', call(f, r)))
+                elif self.pattern(['value', 'function'], ('value',)):
+                    v = resolve(self.stack.pop())
+                    f = resolve(self.stack.pop())
+                    self.stack.append(('function', bind(f, v)))
+                elif self.pattern(['function', 'function'], ('value', 'adverb', 'conjunction')):
+                    f1 = resolve(self.stack.pop())
+                    f2 = resolve(self.stack.pop())
+                    self.stack.append(('function', combine(f1, f2)))
+                else:
+                    if (not p or p in until) and self.overhead[0]:
+                        self.stack.append(self.overhead)
+                        self.overhead = (None, None)
+                    else:
+                        break
+            if self.overhead[0]:
+                if self.overhead[0] != 'close':
+                    self.stack.append(self.overhead)
+                self.overhead = (None, None)
+        if self.stack[-1][0] == 'list':
+            self.stack.append(('value', self.stack.pop()[1]))
+
+    def readStep(self, until):
+        p = self.peek()
+        while p == ' ':
+            self.read()
+            p = self.peek()
+        if p in until:
+            self.read()
+            return False
+        if p is False:
+            return False
+        if p == '(':
+            self.read()
+            self.stack.append(('close', '('))
+        elif p == ')':
+            t = self.findBraceType()
+            self.read()
+            if t == '(':
+                stack = self.stack
+                self.stack = []
+                self.parseExpression(('(',))
+                self.stack = stack + self.stack
+            elif t == '{':
+                stack = self.stack
+                self.stack = []
+                self.parseTacit(('{',))
+                self.stack = stack + self.stack
+        else:
+            self.stack.append(self.parseOne())
+        return True
+
+    def parseOne(self):
+        x = self.read()
+        if isinstance(x, tuple):
+            if x[0] in ('single', 'string', 'number'):
+                return ('value', x[1])
+        return x
+
+    def pattern(self, pat, oh=None):
+        if (oh
+            and self.overhead[0]
+            and (self.overhead[0] in oh
+                 or any(x in typeSynonyms
+                        and self.overhead[0] in typeSynonyms[x]
+                        for x in oh))):
+            return False
+        if len(self.stack) < len(pat):
+            return False
+        for i, x in enumerate(pat, 1):
+            if (x != 'any'
+                and self.stack[-i][0] != x
+                and not (x in typeSynonyms
+                         and self.stack[-i][0] in typeSynonyms[x])):
+                return False
+        return True
+
+    def findBraceType(self):
+        ocode = self.code
+        count = 0
+        while True:
+            p = self.read()
+            if p == ')':
+                count += 1
+            elif isinstance(p, str) and p in '({[':
+                count -= 1
+            if count == 0:
+                break
+        self.code = ocode
+        return p
 
 # TODO: Each column should have dffferent width
 def printtable(v, w=0):
@@ -741,11 +797,15 @@ def printtable(v, w=0):
             if i < vl-1:
                 print('\n'*(dv-2), end='')
 
-parser = ParserPEG(grammar, "program", skipws=False)
+parser = Interpreter()
 
-def parse(code):
-    tree = parser.parse(code+'\n')
-    return visit_parse_tree(tree, InterpreterVisitor())[-1]
+def parseLine(code):
+    return parser.parseLine(code)
+
+def runLine(code):
+    res = parseLine(code)
+    if res[0] == 'value':
+        printtable(res[1])
 
 class REPL(cmd.Cmd):
     prompt = '   '
