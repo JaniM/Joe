@@ -826,7 +826,7 @@ class REPL(cmd.Cmd):
                 print("debug output off.")
         elif code.strip() != '':
             try:
-                v = parse(code)
+                v = parseLine(code)
                 if v is not None and not hasattr(v, '__call__'):
                     printtable(adjust(v))
             except Exception as e:
