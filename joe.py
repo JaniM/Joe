@@ -37,7 +37,7 @@ newline = '\n'
 node = lambda f: lambda self, node, children: f(node.value)
 ignore = lambda words, l: [x for x in l if not any(x == w for w in words)]
 
-def unescape(text):
+def unescape(text): # Taken somewhere from internet
     regex = re.compile(b'\\\\(\\\\|[0-7]{1,3}|x.[0-9a-f]?|[\'"abfnrt]|.|$)')
     def replace(m):
         b = m.group(1)
@@ -297,7 +297,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                 '$': lambda f, g: lambda x, y=None: call(g, y, call(f, y, x))
                                                     if y is not None
                                                     else call(g, x, call(f, x)), 
-                '$,': lambda f, g: lambda x, y=None: call(g, call(f, y, x), y)
+                '$r': lambda f, g: lambda x, y=None: call(g, call(f, y, x), y)
                                                      if y is not None
                                                      else call(g, call(f, x), x), 
                 '$:': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
@@ -862,7 +862,7 @@ if __name__ == '__main__':
     elif '-test' in sys.argv:
         fails = []
         for c, r in tests:
-            v = parse(c)
+            v = runLine(c)
             if v != r:
                 fails += [(c, r, v)]
         if fails:
