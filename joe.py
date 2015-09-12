@@ -20,24 +20,24 @@ MAXRANK = 100
 DEBUG = False
 
 def debugprint(type, text):
+    """Used to print debug-statements."""
     if DEBUG:
         print(type + ':', text)
 
-tests = [("""{/+%N)1 2 3 4""", 2.5),
-         ("""(/*-,1R)5""", 120),
-         ("""(2Lr0 1/,;$:/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]),
-         ("""(VOeM;$C$,-:)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]),
-         ("""M-,~/!R5""", [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]),
+tests = [("""{/+%N)1 2 3 4""", 2.5), # Median 
+         ("""(/*-,1R)5""", 120), # Factorial
+         ("""(2Lr0 1/,;$:/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]), # Fibonacci sequence
+         ("""(VOeM;$C$,-:)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]), # Counting occurences
+         ("""M-,~/!R5""", [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]), # Pascal triangle
          ]
 
 code = '~/*1R10'
 
 whitespace = ' \t'
 newline = '\n'
-node = lambda f: lambda self, node, children: f(node.value)
 ignore = lambda words, l: [x for x in l if not any(x == w for w in words)]
 
-def unescape(text): # Taken somewhere from internet
+def unescape(text): # Taken somewhere from Stack Overflow
     regex = re.compile(b'\\\\(\\\\|[0-7]{1,3}|x.[0-9a-f]?|[\'"abfnrt]|.|$)')
     def replace(m):
         b = m.group(1)
@@ -66,7 +66,8 @@ def unescape(text): # Taken somewhere from internet
     return regex.sub(replace, text)
 
 def memoize(f): 
-    """Memoize any function."""
+    """Memoize any function.
+       Be careful about the memory footprint."""
     cache = {}
     def decorated(*args):
         key = marshal.dumps(args)
@@ -78,6 +79,7 @@ def memoize(f):
     return decorated
 
 def memoizef(f):
+    """Memoize a function accepting only hashable arguments."""
     cache = {}
     def deco(*args):
         key = tuple(args)
@@ -90,15 +92,24 @@ def memoizef(f):
 
 usermemoize = memoizef
 
+# Resolve the depth of a list
 depth = lambda x: isinstance(x, (list, tuple)) and (len(x) and depth(x[0])) + 1
+# Fold from the right
 foldr = lambda f, xs, s=None: (functools.reduce(f, reversed(xs[:-1] if s is None else xs), xs[-1] if s is None else s) if len(xs) else [])
+# Flip the arguments of a function
 flip  = lambda f: rank(lambda x, y=None: f(y, x), (f.rank[0], f.rank[2], f.rank[1]))
+# Bind the left argument of a function.
 bind  = lambda f, x: rank(lambda y, _=None: call(f, x, y), MAXRANK)
+# Combine two functions into one.
+#  combine(f, g)(1)    == f(g(1))
+#  combine(f, g)(1, 2) == f(2, g(2, 1))
 combine = lambda f, g: rank(lambda x, y=None: (call(f, call(g, x))
                                                if y is None
                                                else call(f, y, call(g, y, x))),
                             MAXRANK)
+
 def rank(f, r, p=(0, 0, 0)):
+    """Set the rank of a function."""
     if not isinstance(r, (tuple, list)):
         r = (r, r, r)
     elif len(r) == 1:
@@ -109,20 +120,24 @@ def rank(f, r, p=(0, 0, 0)):
     f.pad = p
     return f
 def rankof(f):
+    """Resolve the rank of a function."""
     f = resolve(f)
     if hasattr(f, 'rank'):
         return f.rank
     return (MAXRANK, MAXRANK, MAXRANK)
 def applyN(f, n, x, y):
+    """Apply a function n times."""
     for _ in range(n):
         x = call(f, x, y)
     return x
 def padrank(f):
+    """Resolves the padding rank of a function."""
     try:
         return f.pad
     except:
         return (0, 0, 0)
 def resolve(x):
+    """Resolves the value from a data-tuple."""
     if isinstance(x, tuple):
         if x[0] == 'function':
             if isinstance(x[1], str):
@@ -137,10 +152,12 @@ def resolve(x):
             raise Exception('Unexpected tuple ' + str(x) + ' - blame the developer')
     return x
 def orderrank(f, m, l, r):
+    """Reorders the rank of a function."""
     rank = rankof(f)
     return (rank[m], rank[l], rank[r])
 
 def adjust(l):
+    """Adjust every element of a list to have the same depth."""
     if not isinstance(l, list) or len(l) == 0:
         return l
     r = []
@@ -153,11 +170,13 @@ def adjust(l):
     return r
 
 def nest(x, n):
+    """Nests the list/value n times."""
     for _ in range(n):
         x = [x]
     return x
 
 def split(l, splitter):
+    """Split the list at the splitter. Splitter should be a list of values."""
     sl = len(splitter)
     r = []
     curr = []
@@ -174,6 +193,7 @@ def split(l, splitter):
     return r
 
 def join(l, j):
+    """Joins the items of l with j."""
     r = []
     for x in l:
         r += x
@@ -181,6 +201,7 @@ def join(l, j):
     return r[:-len(j)]
 
 def unique(l, idfun=None):
+    """Select unique items from a list, optionally using a selector function."""
     if idfun is None:
         idfun = lambda x: x
     seen = {}
@@ -193,6 +214,7 @@ def unique(l, idfun=None):
     return result
 
 def int2base(x, base):
+    """Convert an integer to a different base."""
     basel = len(base)
     if x == 0: return [0] * basel
     digits = []
@@ -205,6 +227,7 @@ def int2base(x, base):
     return [0] * (basel - len(digits)) + digits
 
 def base2int(l, base):
+    """Convert from a different base to a base-10 integer."""
     l = l[::-1]
     r = 0
     x = 0
@@ -220,6 +243,7 @@ def base2int(l, base):
     return r
 
 def padarray(l, lr=0, padder=0):
+    """Pad a list to vbe rectangular (does not adjust the depth)."""
     l = [x if isinstance(x, list) else [x] for x in l]
     w = max(len(x) for x in l)
     if lr == 0:
@@ -229,11 +253,15 @@ def padarray(l, lr=0, padder=0):
 
 @memoizef
 def combinations(n, r):
+    """Calvulates the possible combinations to pick r items from a group of n items.
+       Memoized for efficiency."""
     if r > n:
         return 0
     return int(math.factorial(n) / (math.factorial(n - r) * math.factorial(r)))
 
 def windows(l, w):
+    """Takes windows of width w from the given list.
+       If the width is negative, the windows won't overlap. May cause the last window to be smaller."""
     i = 0
     ll = len(l)
     r = []
@@ -252,21 +280,26 @@ def windows(l, w):
 
 # Please remember: x is the right argument and y is the left one.
 
-adverbs = {'/': lambda f: rank(lambda x, y=None: \
+adverbs = {'/': # foldr
+                lambda f: rank(lambda x, y=None: \
                                    foldr(lambda x, y: call(f, y, x), x) \
                                    if y is None \
                                    else call(f, y, x),
                                (MAXRANK, MAXRANK, -1), (1, 0, 0)),
-           '~': lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
-           'M': lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
+           '~': # flip
+                lambda f: lambda x, y=None: call(f, x, x) if y is None else call(f, x, y),
+           'M': # map
+                lambda f: rank(lambda x, y=None: call(f, x) if y is None else call(f, y, x),
                                (-1, -1, -1)),
-           '\\': lambda f: rank(lambda x, y=None: [call(f, x[:i]) for i in range(1, len(x)+1)]
-                                                  if y is None
-                                                  else [call(f, i) for i in windows(x, y)],
-                                (MAXRANK, 0, MAXRANK), (1, 0, 1)), 
+           '\\': # apply to windows
+                lambda f: rank(lambda x, y=None: [call(f, x[:i]) for i in range(1, len(x)+1)]
+                                                 if y is None
+                                                 else [call(f, i) for i in windows(x, y)],
+                               (MAXRANK, 0, MAXRANK), (1, 0, 1)), 
            }
 
 def agendaf(f, a):
+    """Creates a conditive function (selects the function to run according to f)."""
     f = resolve(f)
     def F(x, y=None):
         v = a[call(f, x) if y is None else call(f, y, x)]
@@ -628,66 +661,66 @@ class Interpreter:
                 self.overhead = self.stack.pop()
             while True:
                 debugprint('Stack', self.stack + ([self.overhead] if self.overhead[0] else []))
-                if self.pattern(['name', 'assign', 'function']):
+                if self.pattern(['name', 'assign', 'function']): # Function assignment
                     n = self.stack.pop()[1]
                     self.stack.pop()
                     f = self.stack[-1]
                     functions[n] = resolve(f)
-                elif self.pattern(['value', 'conjunction', 'assign', 'function']):
+                elif self.pattern(['value', 'conjunction', 'assign', 'function']): # Assignment with conjunction
                     v = resolve(self.stack.pop())
                     c = self.stack.pop()[-1]
                     a = self.stack.pop()
                     f = withConjunction(c, resolve(self.stack.pop()), v)
                     self.stack.append(('function', f))
                     self.stack.append(a)
-                elif self.pattern(['adverb', 'assign', 'function']):
+                elif self.pattern(['adverb', 'assign', 'function']): # Assignment with an adverb
                     c = self.stack.pop()[-1]
                     a = self.stack.pop()
                     f = withAdverb(c, resolve(self.stack.pop()))
                     self.stack.append(('function', f))
                     self.stack.append(a)
-                elif self.pattern(['name', 'assign', 'value']):
+                elif self.pattern(['name', 'assign', 'value']): # Value assignment
                     n = self.stack.pop()[1]
                     self.stack.pop()
                     v = self.stack[-1]
                     variables[n] = resolve(v)
-                elif self.pattern(['adverb', 'function']):
+                elif self.pattern(['adverb', 'function']): # Adverb application
                     a = self.stack.pop()[1]
                     f = self.stack.pop()
                     self.stack.append(('function', withAdverb(a, f)))
                 elif self.pattern(['function', 'conjunction', 'function'], ('value', 'adverb')):
-                    f1 = resolve(self.stack.pop())
+                    f1 = resolve(self.stack.pop()) # 2-function conjunction application
                     c = self.stack.pop()[1]
                     f2 = resolve(self.stack.pop())
                     self.stack.append(('function', withConjunction(c, f2, f1)))
                 elif self.pattern(['value', 'conjunction', 'function'], ('value',)):
-                    v = resolve(self.stack.pop())
+                    v = resolve(self.stack.pop()) # value-function conjunction application
                     c = self.stack.pop()[1]
                     f = resolve(self.stack.pop())
                     self.stack.append(('function', withConjunction(c, f, v)))
-                elif self.pattern(['value', 'list']):
+                elif self.pattern(['value', 'list']): # prepend a value to a list (basically a cheat to build lists)
                     v = resolve(self.stack.pop())
                     l = self.stack.pop()[1]
                     self.stack.append(('list', [v] + l))
-                elif self.pattern(['value', 'value']):
+                elif self.pattern(['value', 'value']): # turn two values to a list
                     v1 = resolve(self.stack.pop())
                     v2 = resolve(self.stack.pop())
                     self.stack.append(('list', [v1, v2]))
-                elif self.pattern(['value', 'function', 'value'], ('value',)):
+                elif self.pattern(['value', 'function', 'value'], ('value',)): # Apply a function to two values
                     l = resolve(self.stack.pop())
                     f = self.stack.pop()
                     r = resolve(self.stack.pop())
                     self.stack.append(('value', call(f, l, r)))
-                elif self.pattern(['function', 'value'], ('value', 'adverb')):
+                elif self.pattern(['function', 'value'], ('value', 'adverb')): # Apply a function to two values
                     f = self.stack.pop()
                     r = resolve(self.stack.pop())
                     self.stack.append(('value', call(f, r)))
-                elif self.pattern(['value', 'function'], ('value',)):
+                elif self.pattern(['value', 'function'], ('value',)): # Bind a funvtion with a value
                     v = resolve(self.stack.pop())
                     f = resolve(self.stack.pop())
                     self.stack.append(('function', bind(f, v)))
                 elif self.pattern(['function', 'function'], ('value', 'adverb', 'conjunction')):
-                    f1 = resolve(self.stack.pop())
+                    f1 = resolve(self.stack.pop()) # Combine two functions
                     f2 = resolve(self.stack.pop())
                     self.stack.append(('function', combine(f1, f2)))
                 else:
