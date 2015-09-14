@@ -107,7 +107,9 @@ combine = lambda f, g: rank(lambda x, y=None: (call(f, call(g, x))
                                                if y is None
                                                else call(f, y, call(g, y, x))),
                             MAXRANK)
-tacit = lambda f, g, h: rank(lambda x, y=None: (call(g, call(f, x), call(h, x))
+# Cobbines three functions to a fork.
+# 
+fork = lambda f, g, h: rank(lambda x, y=None: (call(g, call(f, x), call(h, x))
                                                 if y is None
                                                 else call(g, call(f, y, x), call(h, y, x))),
                              MAXRANK)
@@ -800,7 +802,7 @@ class Interpreter:
                     f1 = resolve(self.stack.pop())
                     f2 = resolve(self.stack.pop())
                     f3 = resolve(self.stack.pop())
-                    self.stack.append(('function', tacit(f1, f2, f3)))
+                    self.stack.append(('function', fork(f1, f2, f3)))
                 elif self.pattern(['function', 'function'], ('value', 'adverb', 'conjunction', 'function')):
                     f1 = resolve(self.stack.pop()) # Combine two functions
                     f2 = resolve(self.stack.pop())
