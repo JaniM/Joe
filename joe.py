@@ -107,6 +107,10 @@ combine = lambda f, g: rank(lambda x, y=None: (call(f, call(g, x))
                                                if y is None
                                                else call(f, y, call(g, y, x))),
                             MAXRANK)
+tacit = lambda f, g, h: rank(lambda x, y=None: (call(g, call(f, x), call(h, x))
+                                                if y is None
+                                                else call(g, call(f, y, x), call(h, y, x))),
+                             MAXRANK)
 
 def rank(f, r, p=(0, 0, 0)):
     """Set the rank of a function."""
@@ -720,6 +724,84 @@ class Interpreter:
                     f = resolve(self.stack.pop())
                     self.stack.append(('function', bind(f, v)))
                 elif self.pattern(['function', 'function'], ('value', 'adverb', 'conjunction')):
+                    f1 = resolve(self.stack.pop()) # Combine two functions
+                    f2 = resolve(self.stack.pop())
+                    self.stack.append(('function', combine(f1, f2)))
+                else:
+                    if (not p or p in until) and self.overhead[0]:
+                        self.stack.append(self.overhead)
+                        self.overhead = (None, None)
+                    else:
+                        break
+            if self.overhead[0]:
+                if self.overhead[0] != 'close':
+                    self.stack.append(self.overhead)
+                self.overhead = (None, None)
+        if self.stack[-1][0] == 'list':
+            self.stack.append(('value', self.stack.pop()[1]))
+
+    def parseTacit(self, until=()):
+        while self.readStep(until):
+            p = self.peek()
+            if len(self.stack):
+                self.overhead = self.stack.pop()
+            while True:
+                debugprint('Stack', self.stack + ([self.overhead] if self.overhead[0] else []))
+                if self.pattern(['name', 'assign', 'function']): # Function assignment
+                    n = self.stack.pop()[1]
+                    self.stack.pop()
+                    f = self.stack[-1]
+                    functions[n] = resolve(f)
+                elif self.pattern(['value', 'conjunction', 'assign', 'function']): # Assignment with conjunction
+                    v = resolve(self.stack.pop())
+                    c = self.stack.pop()[-1]
+                    a = self.stack.pop()
+                    f = withConjunction(c, resolve(self.stack.pop()), v)
+                    self.stack.append(('function', f))
+                    self.stack.append(a)
+                elif self.pattern(['adverb', 'assign', 'function']): # Assignment with an adverb
+                    c = self.stack.pop()[-1]
+                    a = self.stack.pop()
+                    f = withAdverb(c, resolve(self.stack.pop()))
+                    self.stack.append(('function', f))
+                    self.stack.append(a)
+                elif self.pattern(['name', 'assign', 'value']): # Value assignment
+                    n = self.stack.pop()[1]
+                    self.stack.pop()
+                    v = self.stack[-1]
+                    variables[n] = resolve(v)
+                elif self.pattern(['adverb', 'function']): # Adverb application
+                    a = self.stack.pop()[1]
+                    f = self.stack.pop()
+                    self.stack.append(('function', withAdverb(a, f)))
+                elif self.pattern(['function', 'conjunction', 'function'], ('value', 'adverb')):
+                    f1 = resolve(self.stack.pop()) # 2-function conjunction application
+                    c = self.stack.pop()[1]
+                    f2 = resolve(self.stack.pop())
+                    self.stack.append(('function', withConjunction(c, f2, f1)))
+                elif self.pattern(['value', 'conjunction', 'function'], ('value',)):
+                    v = resolve(self.stack.pop()) # value-function conjunction application
+                    c = self.stack.pop()[1]
+                    f = resolve(self.stack.pop())
+                    self.stack.append(('function', withConjunction(c, f, v)))
+                elif self.pattern(['value', 'list']): # prepend a value to a list (basically a cheat to build lists)
+                    v = resolve(self.stack.pop())
+                    l = self.stack.pop()[1]
+                    self.stack.append(('list', [v] + l))
+                elif self.pattern(['value', 'value']): # turn two values to a list
+                    v1 = resolve(self.stack.pop())
+                    v2 = resolve(self.stack.pop())
+                    self.stack.append(('list', [v1, v2]))
+                elif self.pattern(['value', 'function'], ('value',)): # Bind a funvtion with a value
+                    v = resolve(self.stack.pop())
+                    f = resolve(self.stack.pop())
+                    self.stack.append(('function', bind(f, v)))
+                elif self.pattern(['function', 'function', 'function'], ('value', 'adverb', 'conjunction')):
+                    f1 = resolve(self.stack.pop())
+                    f2 = resolve(self.stack.pop())
+                    f3 = resolve(self.stack.pop())
+                    self.stack.append(('function', tacit(f1, f2, f3)))
+                elif self.pattern(['function', 'function'], ('value', 'adverb', 'conjunction', 'function')):
                     f1 = resolve(self.stack.pop()) # Combine two functions
                     f2 = resolve(self.stack.pop())
                     self.stack.append(('function', combine(f1, f2)))
