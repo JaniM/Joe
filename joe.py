@@ -225,6 +225,9 @@ def int2base(x, base):
     if x == 0: return [0] * basel
     digits = []
     while x:
+        if base[-1] == 1:
+            digits.append(x)
+            break
         digits.append(x % base[-1])
         x //= base[-1]
         if len(base) > 1:
@@ -372,7 +375,7 @@ functions = {'+': lambda x, y=0: y + x,
              '-': lambda x, y=None: x-y if y is not None else -x,
              '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
              '*:': lambda x, y=False: +(x and y), 
-             '*,': lambda x, y=2: x ** y, 
+             '*p': lambda x, y=2: x ** y, 
              '%': lambda x, y=1: y/x,
              ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
              ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
@@ -463,7 +466,7 @@ functions['+:'].rank = (0, 0, 0)
 functions['+,'].pad = (0, 1, 0)
 functions['-'].rank = (0, 0, 0)
 functions['*'].rank = (0, 0, 0)
-functions['*,'].rank = (0, 0, 0)
+functions['*p'].rank = (0, 0, 0)
 functions['*:'].rank = (0, 0, 0)
 functions['%'].rank = (0, 0, 0)
 functions[';'].rank = (MAXRANK, MAXRANK, MAXRANK)
@@ -542,7 +545,7 @@ def withConjunction(c, f, x):
     return conjunctions[c](f, x)
 
 nameEndAlphabet = 'abcdefghijklmnopqrstuvwyxz'
-nameStartAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWYXZ^!#%=?+*<>;|]-`/$@`~m\\'
+nameStartAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWYXZ^!#%=?+*<>;|]-`/$@`~\\'
 startAlphabet = nameStartAlphabet
 typeSynonyms = {'value': ('list', 'variable'),
                 'name': ('function', 'variable')}
@@ -656,6 +659,12 @@ class Interpreter:
     def parseLine(self, code):
         self.code = code
         self.stack = []
+        for c in reversed(self.code):
+            if c == ')':
+                break
+            if c in '{(':
+                self.code += ')'
+                break
         while len(self.code):
             self.parseExpression()
         return self.stack[-1]
