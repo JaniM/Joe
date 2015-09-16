@@ -25,10 +25,10 @@ def debugprint(type, text):
         print(type + ':', text)
 
 tests = [("""{/+%N)1 2 3 4""", 2.5), # Median 
-         ("""(/*-,1R)5""", 120), # Factorial
-         ("""(2Lr0 1/,;$:/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]), # Fibonacci sequence
-         ("""(VOeM;$C$,-:)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]), # Counting occurences
-         ("""M-,~/!R5""", [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]), # Pascal triangle
+         ("""(/*-l1R)5""", 120), # Factorial
+         ("""(2Lr0 1/v;$l/+@2ER)10""", [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]), # Fibonacci sequence
+         ("""(VO$rME{M;C)$r-u)"dsaasafd" """, [['a', 3], ['s', 2], ['d', 2], ['f', 1]]), # Counting occurences
+         ("""M-l~/!R5""", [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]), # Pascal triangle
          ]
 
 code = '~/*1R10'
@@ -324,7 +324,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                            if y is None \
                                            else call(f, y, x),
                                        n),
-                '/:': lambda f, s: rank(lambda x, y=None: # FIXDOC /, -> new name
+                '/v': lambda f, s: rank(lambda x, y=None:
                                             foldr(lambda x, y: call(f, y, x), x, s)
                                             if y is None
                                             else call(f, y, x),
@@ -333,7 +333,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                                        (MAXRANK, MAXRANK, MAXRANK))
                                   if not isinstance(resolve(g), list)
                                   else agendaf(f, g),
-                '@,': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
+                '@r': lambda f, g: rank(lambda x, y=None: call(g, call(f, x) if y is None else call(f, y, x)),
                                         rankof(f)),
                 '`': lambda f, g: g+[f] if isinstance(g, list) else [g, f],
                 '$': lambda f, g: lambda x, y=None: call(g, y, call(f, y, x))
@@ -342,7 +342,7 @@ conjunctions = {'^': lambda f, n: rank(lambda x, y=None: \
                 '$r': lambda f, g: lambda x, y=None: call(g, call(f, y, x), y)
                                                      if y is not None
                                                      else call(g, call(f, x), x), 
-                '$:': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
+                '$l': lambda f, g: lambda x, y=None: call(g, x, call(f, y, x))
                                                      if y is not None
                                                      else call(g, x, call(f, x)),
                 }
@@ -370,28 +370,28 @@ def flatten(l):
             yield el
 
 functions = {'+': lambda x, y=0: y + x,
-             '+,': lambda x, y=[]: y + [x], 
-             '+:': lambda x, y=False: +(x or y), 
+             '+l': lambda x, y=[]: y + [x], 
+             '+b': lambda x, y=False: +(x or y), 
              '-': lambda x, y=None: x-y if y is not None else -x,
              '*': lambda x, y=None: x * y if y is not None else (x>0)-(x<0),
-             '*:': lambda x, y=False: +(x and y), 
+             '*b': lambda x, y=False: +(x and y), 
              '*p': lambda x, y=2: x ** y, 
              '%': lambda x, y=1: y/x,
              ';': lambda x, y=None: y+x if y is not None else [z for y in x for z in y],
-             ';,': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
+             ';p': lambda x, y=None: [y, x] if y is not None else list(flatten(x)),
              '|': lambda x, y=None: x%y if y is not None else x if x>0 else -x,
              '<': lambda x, y=0: x>y,
              '>': lambda x, y=0: x<y,
-             '<:': lambda x, y=0: x>=y, 
-             '>:': lambda x, y=0: x<=y, 
-             '<,': lambda x, y=None: x if y is None else x if x<y else y,
-             '>,': lambda x, y=None: x if y is None else x if x>y else y,
+             '<e': lambda x, y=0: x>=y, 
+             '>e': lambda x, y=0: x<=y, 
+             '<c': lambda x, y=None: x if y is None else x if x<y else y,
+             '>c': lambda x, y=None: x if y is None else x if x>y else y,
              '=': lambda x, y=0: +(x==y),
              '=,': lambda x, y=None: [+(y==x[i:i+len(y)]) for i in range(len(x)-len(y))]+[0]*len(y),
              '=:': lambda x, y=0: +(x==y),
              ']': lambda x, y=1: nest(x, y), 
-             '-,': lambda x, y=[0]: [z for z in x if z not in y], 
-             '-:': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
+             '-l': lambda x, y=[0]: [z for z in x if z not in y], 
+             '-u': lambda x, y=None: unique(x) if y is None else [z for z in x if z in y], 
              '?': lambda x, y=None: table([random.random() for _ in range(foldr(lambda x, y: x*y, x))], x)
                                     if y is None
                                     else table([random.uniform(0, y) for _ in range(foldr(lambda x, y: x*y, x))], x), 
@@ -451,7 +451,7 @@ functions = {'+': lambda x, y=0: y + x,
                        (0, 0, 0)),
              'S': rank(lambda x, y=None: list(str(x)) if y is None else split(x, y), (MAXRANK, MAXRANK, MAXRANK), (0, 1, 1)),
              'Sf': rank(lambda x, y=None: list(''.join(y).format(*x)),
-                        (MAXRANK, 1, MAXRANK), (1, 1, 1)), # NOT DOCUMENTED
+                        (MAXRANK, 1, MAXRANK), (1, 1, 1)),
              'T': rank(lambda x, y=None: (table(list(range(functools.reduce(lambda x, y: x*y, x))), x)
                                           if x != [0] else [])
                                          if y is None
@@ -461,34 +461,34 @@ functions = {'+': lambda x, y=0: y + x,
                        (MAXRANK, MAXRANK, MAXRANK), (1, 0, 1))
              }
 functions['+'].rank = (0, 0, 0)
-functions['+,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-functions['+:'].rank = (0, 0, 0)
-functions['+,'].pad = (0, 1, 0)
+functions['+l'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['+b'].rank = (0, 0, 0)
+functions['+l'].pad = (0, 1, 0)
 functions['-'].rank = (0, 0, 0)
 functions['*'].rank = (0, 0, 0)
 functions['*p'].rank = (0, 0, 0)
-functions['*:'].rank = (0, 0, 0)
+functions['*b'].rank = (0, 0, 0)
 functions['%'].rank = (0, 0, 0)
 functions[';'].rank = (MAXRANK, MAXRANK, MAXRANK)
 functions[';'].pad = (2, 1, 1)
-functions[';,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-functions[';,'].pad = (1, 0, 0)
+functions[';p'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions[';p'].pad = (1, 0, 0)
 functions['|'].rank = (0, 0, 0)
 functions['<'].rank = (0, 0, 0)
 functions['>'].rank = (0, 0, 0)
-functions['<:'].rank = (0, 0, 0)
-functions['>:'].rank = (0, 0, 0)
-functions['<,'].rank = (0, 0, 0)
-functions['>,'].rank = (0, 0, 0)
+functions['<e'].rank = (0, 0, 0)
+functions['>e'].rank = (0, 0, 0)
+functions['<c'].rank = (0, 0, 0)
+functions['>c'].rank = (0, 0, 0)
 functions['='].rank = (0, 0, 0)
 functions['=,'].rank = (MAXRANK, MAXRANK, MAXRANK)
 functions['=,'].rank = (1, 1, 1)
 functions['=:'].rank = (MAXRANK, MAXRANK, MAXRANK)
 functions[']'].rank = (MAXRANK, 0, MAXRANK)
-functions['-,'].rank = (MAXRANK, MAXRANK, MAXRANK)
-functions['-,'].pad = (1, 1, 1)
-functions['-:'].rank = (MAXRANK, MAXRANK, MAXRANK)
-functions['-:'].pad = (1, 1, 1)
+functions['-l'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['-l'].pad = (1, 1, 1)
+functions['-u'].rank = (MAXRANK, MAXRANK, MAXRANK)
+functions['-u'].pad = (1, 1, 1)
 functions['?'].rank = (1, 0, 1)
 functions['?'].pad = (1, 0, 1)
 functions['!'].rank = (0, 0, 0)
@@ -669,6 +669,56 @@ class Interpreter:
             self.parseExpression()
         return self.stack[-1]
 
+    def parseCommon(self):
+        if self.pattern(['name', 'assign', 'function']): # Function assignment
+            n = self.stack.pop()[1]
+            self.stack.pop()
+            f = self.stack[-1]
+            functions[n] = resolve(f)
+        elif self.pattern(['value', 'conjunction', 'assign', 'function']): # Assignment with conjunction
+            v = resolve(self.stack.pop())
+            c = self.stack.pop()[-1]
+            a = self.stack.pop()
+            f = withConjunction(c, resolve(self.stack.pop()), v)
+            self.stack.append(('function', f))
+            self.stack.append(a)
+        elif self.pattern(['adverb', 'assign', 'function']): # Assignment with an adverb
+            c = self.stack.pop()[-1]
+            a = self.stack.pop()
+            f = withAdverb(c, resolve(self.stack.pop()))
+            self.stack.append(('function', f))
+            self.stack.append(a)
+        elif self.pattern(['name', 'assign', 'value']): # Value assignment
+            n = self.stack.pop()[1]
+            self.stack.pop()
+            v = self.stack[-1]
+            variables[n] = resolve(v)
+        elif self.pattern(['adverb', 'function']): # Adverb application
+            a = self.stack.pop()[1]
+            f = self.stack.pop()
+            self.stack.append(('function', withAdverb(a, f)))
+        elif self.pattern(['function', 'conjunction', 'function'], ('value', 'adverb')):
+            f1 = resolve(self.stack.pop()) # 2-function conjunction application
+            c = self.stack.pop()[1]
+            f2 = resolve(self.stack.pop())
+            self.stack.append(('function', withConjunction(c, f2, f1)))
+        elif self.pattern(['value', 'conjunction', 'function'], ('value',)):
+            v = resolve(self.stack.pop()) # value-function conjunction application
+            c = self.stack.pop()[1]
+            f = resolve(self.stack.pop())
+            self.stack.append(('function', withConjunction(c, f, v)))
+        elif self.pattern(['value', 'list']): # prepend a value to a list (basically a cheat to build lists)
+            v = resolve(self.stack.pop())
+            l = self.stack.pop()[1]
+            self.stack.append(('list', [v] + l))
+        elif self.pattern(['value', 'value']): # turn two values to a list
+            v1 = resolve(self.stack.pop())
+            v2 = resolve(self.stack.pop())
+            self.stack.append(('list', [v1, v2]))
+        else:
+            return False
+        return True
+
     def parseExpression(self, until=()):
         while self.readStep(until):
             p = self.peek()
@@ -676,57 +726,14 @@ class Interpreter:
                 self.overhead = self.stack.pop()
             while True:
                 debugprint('Stack', self.stack + ([self.overhead] if self.overhead[0] else []))
-                if self.pattern(['name', 'assign', 'function']): # Function assignment
-                    n = self.stack.pop()[1]
-                    self.stack.pop()
-                    f = self.stack[-1]
-                    functions[n] = resolve(f)
-                elif self.pattern(['value', 'conjunction', 'assign', 'function']): # Assignment with conjunction
-                    v = resolve(self.stack.pop())
-                    c = self.stack.pop()[-1]
-                    a = self.stack.pop()
-                    f = withConjunction(c, resolve(self.stack.pop()), v)
-                    self.stack.append(('function', f))
-                    self.stack.append(a)
-                elif self.pattern(['adverb', 'assign', 'function']): # Assignment with an adverb
-                    c = self.stack.pop()[-1]
-                    a = self.stack.pop()
-                    f = withAdverb(c, resolve(self.stack.pop()))
-                    self.stack.append(('function', f))
-                    self.stack.append(a)
-                elif self.pattern(['name', 'assign', 'value']): # Value assignment
-                    n = self.stack.pop()[1]
-                    self.stack.pop()
-                    v = self.stack[-1]
-                    variables[n] = resolve(v)
-                elif self.pattern(['adverb', 'function']): # Adverb application
-                    a = self.stack.pop()[1]
-                    f = self.stack.pop()
-                    self.stack.append(('function', withAdverb(a, f)))
-                elif self.pattern(['function', 'conjunction', 'function'], ('value', 'adverb')):
-                    f1 = resolve(self.stack.pop()) # 2-function conjunction application
-                    c = self.stack.pop()[1]
-                    f2 = resolve(self.stack.pop())
-                    self.stack.append(('function', withConjunction(c, f2, f1)))
-                elif self.pattern(['value', 'conjunction', 'function'], ('value',)):
-                    v = resolve(self.stack.pop()) # value-function conjunction application
-                    c = self.stack.pop()[1]
-                    f = resolve(self.stack.pop())
-                    self.stack.append(('function', withConjunction(c, f, v)))
-                elif self.pattern(['value', 'list']): # prepend a value to a list (basically a cheat to build lists)
-                    v = resolve(self.stack.pop())
-                    l = self.stack.pop()[1]
-                    self.stack.append(('list', [v] + l))
-                elif self.pattern(['value', 'value']): # turn two values to a list
-                    v1 = resolve(self.stack.pop())
-                    v2 = resolve(self.stack.pop())
-                    self.stack.append(('list', [v1, v2]))
-                elif self.pattern(['value', 'function', 'value'], ('value',)): # Apply a function to two values
+                if self.parseCommon():
+                    pass
+                elif self.pattern(['value', 'function', 'value'], ('value', 'conjunction')): # Apply a function to two values
                     l = resolve(self.stack.pop())
                     f = self.stack.pop()
                     r = resolve(self.stack.pop())
                     self.stack.append(('value', call(f, l, r)))
-                elif self.pattern(['function', 'value'], ('value', 'adverb')): # Apply a function to two values
+                elif self.pattern(['function', 'value'], ('value', 'adverb', 'conjunction')): # Apply a function to two values
                     f = self.stack.pop()
                     r = resolve(self.stack.pop())
                     self.stack.append(('value', call(f, r)))
@@ -758,51 +765,8 @@ class Interpreter:
                 self.overhead = self.stack.pop()
             while True:
                 debugprint('Stack', self.stack + ([self.overhead] if self.overhead[0] else []))
-                if self.pattern(['name', 'assign', 'function']): # Function assignment
-                    n = self.stack.pop()[1]
-                    self.stack.pop()
-                    f = self.stack[-1]
-                    functions[n] = resolve(f)
-                elif self.pattern(['value', 'conjunction', 'assign', 'function']): # Assignment with conjunction
-                    v = resolve(self.stack.pop())
-                    c = self.stack.pop()[-1]
-                    a = self.stack.pop()
-                    f = withConjunction(c, resolve(self.stack.pop()), v)
-                    self.stack.append(('function', f))
-                    self.stack.append(a)
-                elif self.pattern(['adverb', 'assign', 'function']): # Assignment with an adverb
-                    c = self.stack.pop()[-1]
-                    a = self.stack.pop()
-                    f = withAdverb(c, resolve(self.stack.pop()))
-                    self.stack.append(('function', f))
-                    self.stack.append(a)
-                elif self.pattern(['name', 'assign', 'value']): # Value assignment
-                    n = self.stack.pop()[1]
-                    self.stack.pop()
-                    v = self.stack[-1]
-                    variables[n] = resolve(v)
-                elif self.pattern(['adverb', 'function']): # Adverb application
-                    a = self.stack.pop()[1]
-                    f = self.stack.pop()
-                    self.stack.append(('function', withAdverb(a, f)))
-                elif self.pattern(['function', 'conjunction', 'function'], ('value', 'adverb')):
-                    f1 = resolve(self.stack.pop()) # 2-function conjunction application
-                    c = self.stack.pop()[1]
-                    f2 = resolve(self.stack.pop())
-                    self.stack.append(('function', withConjunction(c, f2, f1)))
-                elif self.pattern(['value', 'conjunction', 'function'], ('value',)):
-                    v = resolve(self.stack.pop()) # value-function conjunction application
-                    c = self.stack.pop()[1]
-                    f = resolve(self.stack.pop())
-                    self.stack.append(('function', withConjunction(c, f, v)))
-                elif self.pattern(['value', 'list']): # prepend a value to a list (basically a cheat to build lists)
-                    v = resolve(self.stack.pop())
-                    l = self.stack.pop()[1]
-                    self.stack.append(('list', [v] + l))
-                elif self.pattern(['value', 'value']): # turn two values to a list
-                    v1 = resolve(self.stack.pop())
-                    v2 = resolve(self.stack.pop())
-                    self.stack.append(('list', [v1, v2]))
+                if self.parseCommon():
+                    pass
                 elif self.pattern(['value', 'function'], ('value',)): # Bind a funvtion with a value
                     v = resolve(self.stack.pop())
                     f = resolve(self.stack.pop())
@@ -987,10 +951,18 @@ if __name__ == '__main__':
         print("    -test  run after making changes to the interpreter to check damages")
     elif '-test' in sys.argv:
         fails = []
+        first = True
         for c, r in tests:
-            v = runLine(c)
+            v = parseLine(c)[1]
             if v != r:
                 fails += [(c, r, v)]
+            else:
+                if first:
+                    print("Passed tests:")
+                    first = False
+                print("  Code:  ", c)
+                print("  Result:", v)
+                print()
         if fails:
             print("Failed tests:")
             for c, r, v in fails:

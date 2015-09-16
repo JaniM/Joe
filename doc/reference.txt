@@ -15,14 +15,17 @@ Adverbs take only one argument, which is an immediately following function, and 
 Conjunctions always take two arguments, where left argument either a literal or a function, and right argument is a function. They can return anything.
 
  r^F  gives a function, which calls F with rank r.
- v/,F gives a folding function, which has a preset starting value of v.
+ v/vF gives a folding function, which has a preset starting value of v.
  F@G  gives a function, which passes the result of G to F. Informally: `x F@G y` is `F x G y`
  v@F  gives a function which uses F to select a function from v if v is a list. Has rank of F.
+ F@rG gives a function that calls F with the return value of G (has rank of G)
  F`G  gives a list with F and G. If F is a list, G is appended to it.
- F$G  when called monadically: (y F x G y)
-                  dyadically:  (y F G y)
- F$,G when called monadically: ((x G y) F y)
-                  dyadically:  ((G y) F y)
+ F$G  when called dyadically:  (x F x G y)
+                  monadically: (y F G y)
+ F$lG when called dyadically:  (y F x G y)
+                  monadically: (y F G y)
+ F$rG when called dyadically:  ((x G y) F x)
+                  monadically: ((G y) F y)
 
 ### Functions
 x is always the left argument
@@ -31,29 +34,29 @@ y is always the right argument
 name | rank  | definitions
 +    | 0 0 0 | gives the sum of x and y - x defaults to 0
 -    | 0 0 0 | gives the difference of y from x - `2-5` is 3 - x defaults to 0
-+,   | M M M | gives x + [y] - padding of 0 1 0
-+:   | 0 0 0 | gives x && y
++l   | M M M | gives x + [y] - padding of 0 1 0
++b   | 0 0 0 | gives x && y
 *    | 0 0 0 | dyad:  gives the product of x and y
                monad: gives the sign of y, which is -1, 0 or 1
-*,   | 0 0 0 | gives y ** x - x defaults to 2
-*:   | 0 0 0 | gives x || y
+*p   | 0 0 0 | gives y ** x - x defaults to 2
+*b   | 0 0 0 | gives x || y
 %    | 0 0 0 | gives the dividend of x and y - x defaults to 0
 |    | 0 0 0 | dyad:  gives the modulo of x and y
                monad: gives the absolute value of y
 ;    | M M M | dyad:  concatenates x and y
                monad: flattens y by one level
-;,   | M M M | dyad:  gives [x, y]
+;p   | M M M | dyad:  gives [x, y]
                monad: flattens y completely
 <    | 0 0 0 | returns x<y
 >    | 0 0 0 | returns x>y
-<:   | 0 0 0 | returns x<=y - x defaults to 0
->:   | 0 0 0 | returns x>=y - x defaults to 0
-<,   | 0 0 0 | returns smaller of x and y
->,   | 0 0 0 | returns greater of x and y
+<e   | 0 0 0 | returns x<=y - x defaults to 0
+>e   | 0 0 0 | returns x>=y - x defaults to 0
+<c   | 0 0 0 | returns smaller of x and y
+>c   | 0 0 0 | returns greater of x and y
 =    | 0 0 0 | returns x==y - x defaults to 0
 ]    | M 0 M | nests x to a list y times - y defaults to 1
--,   | M M M | removes items of y from x - y defaults to [0]
--:   | M M M | dyad:  returns items of x which are in y
+-l   | M M M | removes items of y from x - y defaults to [0]
+-u   | M M M | dyad:  returns items of x which are in y
                monad: return unique items of x
 ?    | 1 0 1 | dyad:  returns table of shape y with values from 0 to x, inclusive
                monad: returns table of shape y with values from 0 to 1, inclusive
@@ -91,6 +94,7 @@ Pe   | M 0 M | dyad:  pads y to length of x, by appending zeroes
 R    | 0 0 0 | dyad:  gives numbers from x to y, inclusive. Y can be less than x.
                monad: gives numbers from 0 to y, exclusive
 S    | M M M | splits y by x (both can be any lists) - x defaults to " "
+Sf   | M 1 M | formats y by x (every element of x is passed as an argument to format)
 T    | 1 1 1 | dyad:  gives a table of shape x, using items of y cyclically
                monad: same, but uses range from 0 to infinity
 V    | M M M | monad: reverses y
