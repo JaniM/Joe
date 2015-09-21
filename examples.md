@@ -35,25 +35,25 @@
 * Fibonacci sequence
 
     ```
-       F:2Lr0 1/,;$/+@2ER
+       F:2Lr0 1/v;$l/+@2ER
        F10
     [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
     ```
 
     Explanation: Here we see a lot of new features. Let's look at what each function does from right-to-left
       * `R` gives a range from 0 to x.
-      * `;$/+@2E` takes a list as it's right argument and appends the sum of the two last elements to it.
+      * `;$l/+@2E` takes a list as it's right argument and appends the sum of the two last elements to it.
         * `2E` takes the last two elements
         * `/+` sums them
         * `;` concats two values
-        * `F$G x` gets evaluated as `x F G x`
-      * `0 1/,` right-folds the list, starting with the value of `[0, 1]`. This is the magic.
+        * `x F$lG y` gets evaluated as `y F x G y`
+      * `0 1/v` right-folds the list, starting with the value of `[0, 1]`. This is the magic.
       * `2Lr` drops the last two elements. Without it, two extra numbers would be returned.
 
 * Count letters in a word
 
     ```
-       F:VOeM;$C$,-:
+       F:VO$rME{M;C)$r-u
        F"this is a sentence"
     e 3
       3
@@ -73,7 +73,7 @@
 * [Home on the Range of Lists](http://codegolf.stackexchange.com/q/47351/20356)
 
     ```
-       F:/+,M]R
+       F:/+lM]R
        F10
     [0, [1, [2, [3, [4, [5, [6, [7, [8, [9]]]]]]]]]]
        F3
@@ -89,6 +89,6 @@
   Explanation: Function definition initiates a chain of functions. The function is evaluated as `/+,(M](RY))` or `X/+,(XM](XRY))`, depending on if it's called monadically or dyadically.
     * `R` gives the range from 0 to Y.
     * `M]` wraps every element to a list.
-    * `/+,` gives the fold of `+,`, which returns `x + [y]`
+    * `/+l` gives the fold of `+l`, which returns `x + [y]`
 
 
